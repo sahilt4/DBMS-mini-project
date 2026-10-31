@@ -1,223 +1,208 @@
-# Smart Bus Reservation System
-### Python Desktop Application | College DBMS Mini Project
+# Bus Reservation and Management System (BRMS)
+### Advanced Python Desktop Application | Relational DBMS Mini Project
 
-A complete, functional, and polished **Smart Bus Reservation System** built with **PySide6 (Qt for Python)**, **SQLite 3**, and **Matplotlib**. Developed as a comprehensive college DBMS mini project demonstrating relational database concepts, ACID transactions, foreign keys, normalization, dynamic seat availability, and modern desktop UI design.
+A complete, enterprise-grade **Bus Reservation and Management System (BRMS)** built with **PySide6 (Qt for Python)**, **MySQL 8.x (InnoDB)** (with unified SQLite fallback portability), **OpenCV**, and **ReportLab**. 
+
+Developed as an advanced academic DBMS project demonstrating normalized 13-table relational architecture, ACID transactions, row-level concurrency locking, waitlist queue management, QR-based digital ticketing, live camera conductor boarding verification, and role-based access control (RBAC).
 
 ---
 
-## 1. Features Overview
+## 1. Key Features Overview
 
-### A. Role-Based Access Control
+### A. Three Operational Roles (RBAC)
 - **Administrator**:
-  - Real-time dashboard with 6 KPI metrics, recent bookings, high-occupancy journeys, and an integrated Matplotlib sales trend chart.
-  - Bus fleet management (add, edit, search, filter by coach type, and soft-deactivation).
-  - Route management (add, edit, search, and validate origin-destination pairs).
-  - Schedule management (assign buses to routes, set timings and fares, prevent overlapping journeys, and cancel trips).
-  - Master booking audit (view all customer reservations across the network).
+  - Executive dashboard with 6 KPI cards, load factors, recent bookings, and an embedded Matplotlib sales trend chart.
+  - Fleet management (CRUD operations, registration validation, capacity constraints, and operational status).
+  - Route & Intermediate Stops management (city pairs, sequential waypoints, distance, and duration offsets).
+  - Schedule management (journey timetable creation, bus assignment, time conflict prevention, and trip cancellations).
+  - Network-wide booking audit ledger and security audit log explorer.
   - Comprehensive analytical reports with one-click **CSV Export**.
 - **Passenger**:
-  - Account registration and login with secure PBKDF2-HMAC password hashing.
-  - Search available journeys by source city, destination city, and travel date.
-  - **Interactive Visual Seat Selector**: Realistic coach layout with driver cabin, 2x2 seats, aisle, and real-time color and text availability states (`[FREE]`, `[SEL]`, `[OCC]`).
-  - Booking confirmation dialog with passenger detail confirmation and simulated payment methods (UPI, Card, Net Banking, Cash).
-  - Digital Boarding Pass / E-Ticket view with barcode simulation and printable text export.
-  - "My Bookings" page with search, ticket review, and self-service cancellation with simulated refund.
-
-### B. Core DBMS Demonstrations
-- **Relational Integrity**: 7 normalized tables enforcing primary keys, foreign keys (`PRAGMA foreign_keys = ON;`), CHECK constraints, and NOT NULL fields.
-- **Partial Unique Index**:
-  ```sql
-  CREATE UNIQUE INDEX idx_bookings_active_seat
-  ON bookings (schedule_id, seat_number)
-  WHERE status = 'CONFIRMED';
-  ```
-  Guarantees duplicate-booking prevention while enabling cancelled bookings to release their seats without deleting historical records.
-- **ACID Write Transactions**: Executes reservations using `BEGIN IMMEDIATE` to guarantee concurrency safety and prevent double-booking race conditions.
-- **Dynamic Availability Calculation**: Computes available seats dynamically from total capacity minus confirmed bookings, eliminating counter update anomalies.
-- **Data Protection**: Prepared statements (`?` parameters) across all repositories to prevent SQL injection.
+  - Account registration and login with salted cryptographic password hashing (bcrypt / PBKDF2).
+  - Multi-criteria bus search (origin, destination, travel date, coach class).
+  - **Interactive 2x2 Visual Seat Selector**: Realistic coach seating layout with driver cabin, aisle, color-coded availability (`[FREE]`, `[SEL]`, `[OCC]`), and responsive sizing.
+  - Booking checkout with payment method selection (UPI, Credit Card, Debit Card, Net Banking, Cash).
+  - **Digital Boarding Pass / E-Ticket Modal**: High-contrast QR code rendering and one-click **ReportLab PDF Boarding Pass** download.
+  - Self-service booking management with cancellation and tiered refund computation (100%, 75%, 50%).
+- **Conductor**:
+  - Trip selector and real-time passenger manifest table.
+  - **Live Camera QR Code Scanner**: Onboard verification using OpenCV (`cv2.VideoCapture` + `cv2.QRCodeDetector`).
+  - Manual reference code check-in fallback.
+  - Duplicate check-in prevention and cancelled ticket boarding rejection.
+  - Real-time check-in audit history.
 
 ---
 
-## 2. Technology Stack
+## 2. Relational Database Architecture
 
-- **Programming Language**: Python 3.11+
-- **Desktop GUI**: PySide6 6.12 (Qt for Python)
-- **Database**: SQLite 3 (embedded, standard library)
-- **Visual Analytics**: Matplotlib 3.11 (embedded via `FigureCanvasQTAgg`)
-- **Testing**: Pytest 9.1
-- **Security**: PBKDF2-HMAC with SHA-256 and random 16-byte salt
-- **File Export**: Python standard library `csv` module
+The application implements a 13-table (+ Audit Log) relational schema in pure **3NF / BCNF**:
 
----
-
-## 3. Demo Credentials
-
-Convenient one-click demo login buttons are provided directly on the Login screen for smooth viva evaluation:
-
-| Role | Name | Username | Password | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **Administrator** | System Administrator | `admin` | `Admin@123` | Full administrative control |
-| **Passenger 1** | Rahul Sharma | `rahul_sharma` | `Rahul@123` | Pre-seeded with confirmed bookings |
-| **Passenger 2** | Priya Patil | `priya_patil` | `Priya@123` | Pre-seeded with historical bookings |
-| **Passenger 3** | Amit Deshmukh | `amit_d` | `Amit@123` | Pre-seeded with cancelled booking |
-
----
-
-## 4. Installation & Windows Setup
-
-### Prerequisites
-- Windows 10/11
-- Python 3.11 installed (added to PATH or using py launcher)
-
-### Step-by-Step Setup Commands
-
-Open PowerShell or Command Prompt in the project folder:
-
-```powershell
-# 1. Navigate to the project directory
-cd E:\Projects\DBMS
-
-# 2. Create Python virtual environment
-python -m venv .venv
-
-# 3. Activate the virtual environment
-.venv\Scripts\activate
-
-# 4. Upgrade pip
-python -m pip install --upgrade pip
-
-# 5. Install application dependencies
-pip install -r requirements.txt
+```
++---------------------------------------------------------------+
+|                       13 CORE RELATIONS                       |
++---------------------------------------------------------------+
+| 1. USERS            | Master credentials & RBAC roles         |
+| 2. PASSENGERS       | Passenger demographic profiles          |
+| 3. BUSES            | Fleet inventory & seating capacity      |
+| 4. ROUTES           | Travel corridors & distances            |
+| 5. BUS_STOPS        | Physical terminals & boarding points    |
+| 6. ROUTE_STOPS      | Sequential route waypoints              |
+| 7. SCHEDULES        | Departure timetable & fares             |
+| 8. SCHEDULE_SEATS   | Authoritative per-trip seat inventory   |
+| 9. BOOKINGS         | Reservation ledger (unique reference)   |
+| 10. PAYMENTS        | Payment transaction records             |
+| 11. REFUNDS         | Cancellation penalty & refund ledger    |
+| 12. WAITLIST        | FIFO priority queue for sold-out trips  |
+| 13. TICKET_CHECKINS | Conductor verification log (QR/manual)  |
+| 14. AUDIT_LOGS      | System-wide change tracking log         |
++---------------------------------------------------------------+
 ```
 
+### Relational Views:
+1. `vw_available_buses`: Active fleet inventory and scheduled trip count.
+2. `vw_available_seats`: Live seat availability count per trip.
+3. `vw_booking_details`: Denormalized view joining traveler, schedule, vehicle, route, and payment records.
+4. `vw_passenger_booking_history`: Passenger lifetime travel statistics and spend.
+5. `vw_route_revenue`: Route load factors, gross revenue, refunds, and net profit.
+6. `vw_schedule_occupancy`: Real-time coach load factor and seat occupancy percentage.
+
+### Stored Procedures & Triggers:
+- `sp_search_buses`: Query trips with real-time seat availability calculation.
+- `sp_book_seat`: Atomic reservation procedure with row-level locking.
+- `sp_cancel_booking`: Tiered refund computation and waitlist auto-allocation trigger.
+- `sp_process_waitlist`: FIFO queue allocation for released seats.
+- `sp_generate_revenue_report`: Aggregated financial metrics for a date range.
+- `trg_after_schedule_insert`: Automatic seat inventory generation (1 to capacity) in `schedule_seats`.
+- `trg_audit_*`: System mutation audit logging.
+
 ---
 
-## 5. Running the Application
+## 3. Technology Stack
 
-Launch the desktop application with a single command:
+- **Language**: Python 3.11+
+- **Desktop GUI**: PySide6 (Qt for Python 6.12)
+- **Relational Databases**: MySQL 8.x (InnoDB) / Portable SQLite 3 (WAL mode)
+- **QR Generation & Verification**: `qrcode[pil]` 8.2 & OpenCV (`cv2`) 5.0
+- **Document Generation**: ReportLab 5.1 (PDF Boarding Passes)
+- **Visual Analytics**: Matplotlib 3.11 (`FigureCanvasQTAgg`)
+- **Security**: Cryptographic hashing (bcrypt / PBKDF2-HMAC-SHA256)
+- **Testing**: Pytest 9.1 (23 Automated Tests, 100% Pass Rate)
+
+---
+
+## 4. Default Credentials (RBAC)
+
+The system includes pre-seeded accounts for instant evaluation:
+
+| Role | Full Name | Username / Email | Password | Permissions & Notes |
+|---|---|---|---|---|
+| **ADMIN** | System Administrator | `admin` | `Admin@123` | Full system control, fleet, routes, schedules, reports |
+| **CONDUCTOR** | Rajesh Conductor | `conductor1` | `Conductor@123` | Trip manifests, live camera QR scanning, passenger boarding |
+| **PASSENGER** | Rahul Sharma | `rahul_sharma` | `Rahul@123` | Pre-seeded with confirmed reservations |
+| **PASSENGER** | Priya Patil | `priya_patil` | `Priya@123` | Pre-seeded with confirmed reservations |
+| **PASSENGER** | Amit Deshmukh | `amit_d` | `Amit@123` | Pre-seeded with cancelled reservation |
+
+---
+
+## 5. Installation & Setup Guide
+
+### Option A: Quickstart Mode (Instant Zero-Config SQLite)
+The application includes an embedded dual-database adapter. If MySQL is not configured, it automatically launches with the fully featured portable database:
 
 ```powershell
+# 1. Clone repository
+git clone https://github.com/sahilt4/DBMS-mini-project.git
+cd DBMS-mini-project
+
+# 2. Create and activate virtual environment
+python -m venv .venv
+.venv\Scripts\activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Run the desktop application
 python main.py
 ```
 
-*Note: On first startup, the application automatically initializes the SQLite schema and seeds realistic Maharashtra routes, buses, schedules, and demo users.*
+### Option B: Production Setup with MySQL 8.x
+To connect the application to a local or remote MySQL 8.x server:
 
-### Database Location & Reset
-The application database is stored safely in your writable application-data directory:
-- **Windows**: `%LOCALAPPDATA%\SmartBusReservation\smart_bus.sqlite3`
-
-To reset the demonstration database back to clean seed data at any time:
-```powershell
-python -m app.seed
-```
+1. Open MySQL Workbench or the MySQL Command Line Client:
+   ```powershell
+   mysql -u root -p
+   ```
+2. Execute the migration scripts in sequential order from the `database/` folder:
+   ```sql
+   SOURCE database/01_create_database.sql;
+   SOURCE database/02_create_tables.sql;
+   SOURCE database/03_constraints_indexes.sql;
+   SOURCE database/04_views.sql;
+   SOURCE database/05_stored_procedures.sql;
+   SOURCE database/06_triggers.sql;
+   SOURCE database/07_sample_data.sql;
+   ```
+3. Configure your MySQL credentials in `app/config.py` (or set environment variables `BRMS_DB_USER`, `BRMS_DB_PASSWORD`, `BRMS_DB_HOST`, `BRMS_DB_PORT`).
+4. Launch the application:
+   ```powershell
+   python main.py
+   ```
 
 ---
 
-## 6. Running Automated Tests
+## 6. Running the Automated Test Suite
 
-A comprehensive suite of 17 automated tests validates the database schema, constraints, authentication, transactions, seat availability lifecycle, concurrency safety, and CSV reporting:
+Run all 23 unit, integration, and concurrency tests:
 
 ```powershell
+# Run the complete test suite
 pytest -v
+
+# Run concurrency tests only
+pytest -v tests/test_booking.py -k "concurrent"
+
+# Run conductor QR and ticket verification tests
+pytest -v tests/test_conductor_checkin.py tests/test_digital_ticket.py
 ```
 
-**Expected output:**
-```text
-============================= 17 passed in 5.70s ==============================
+**Test Verification Summary:**
 ```
-
----
-
-## 7. Project Structure
-
-```text
-DBMS/
-│
-├── main.py                     # Application startup entry point
-├── requirements.txt            # Python dependencies (PySide6, matplotlib, pytest)
-├── README.md                   # Complete documentation & setup instructions
-├── DBMS_CONCEPTS.md            # Detailed viva guide with 15+ SQL queries
-├── ER_DIAGRAM.md               # Mermaid ER diagram & schema relationship doc
-├── PROJECT_REPORT.md           # Formal college mini project report
-├── .gitignore                  # Git ignore rules for Python & SQLite
-│
-├── app/                        # Application source code package
-│   ├── __init__.py
-│   ├── config.py               # Constants, app data paths, demo accounts
-│   ├── database.py             # SQLite connection factory & PBKDF2 hasher
-│   ├── schema.sql              # 7 normalized relational tables & partial indexes
-│   ├── seed.py                 # Idempotent demo dataset seeder
-│   │
-│   ├── repositories/           # Data Access Layer (SQL queries)
-│   │   ├── user_repository.py
-│   │   ├── bus_repository.py
-│   │   ├── route_repository.py
-│   │   ├── schedule_repository.py
-│   │   ├── passenger_repository.py
-│   │   ├── booking_repository.py
-│   │   └── report_repository.py
-│   │
-│   ├── services/               # Business Logic & Transaction Layer
-│   │   ├── auth_service.py
-│   │   ├── booking_service.py      # ACID reservation workflow (BEGIN IMMEDIATE)
-│   │   ├── cancellation_service.py # Atomic cancellation & refund
-│   │   ├── schedule_service.py     # Bus interval overlap checks
-│   │   └── report_service.py       # CSV report generation
-│   │
-│   └── ui/                     # Presentation Layer (PySide6)
-│       ├── styles.py           # Modern Windows QSS stylesheet
-│       ├── main_window.py      # Master layout with role-based sidebar
-│       │
-│       ├── dialogs/            # Modal Dialogs
-│       │   ├── login_dialog.py
-│       │   ├── registration_dialog.py
-│       │   ├── seat_selection_dialog.py     # Visual interactive coach layout
-│       │   ├── booking_confirmation_dialog.py
-│       │   ├── ticket_dialog.py             # Boarding pass & text receipt export
-│       │   ├── bus_dialog.py
-│       │   ├── route_dialog.py
-│       │   └── schedule_dialog.py
-│       │
-│       └── pages/              # Application Pages
-│           ├── dashboard_page.py            # Admin KPI cards & Matplotlib trend
-│           ├── bus_search_page.py           # Passenger journey search
-│           ├── bus_management_page.py       # Bus fleet management
-│           ├── route_management_page.py     # Route management
-│           ├── schedule_management_page.py  # Journey schedules
-│           ├── my_bookings_page.py          # Passenger history & cancellation
-│           └── reports_page.py              # Reports table & CSV export
-│
-└── tests/                      # Automated Pytest Suite
-    ├── conftest.py             # Isolated temporary database fixtures
-    ├── test_database.py        # Schema & foreign key tests
-    ├── test_auth.py            # PBKDF2 hashing & registration tests
-    ├── test_booking.py         # Transaction & duplicate-booking tests
-    ├── test_availability.py    # Dynamic availability & seat release tests
-    ├── test_cancellation.py    # Cancellation & refund tests
-    ├── test_authorization.py   # Passenger data isolation tests
-    └── test_reports.py         # Dashboard analytics & CSV export tests
+======================== 23 passed in 70.02s ========================
 ```
 
 ---
 
-## 8. Packaging as a Standalone Executable (PyInstaller)
+## 7. Step-by-Step Viva Demonstration Script
 
-To bundle the application into a standalone Windows `.exe`:
-
-```powershell
-# 1. Install PyInstaller in the virtual environment
-pip install pyinstaller
-
-# 2. Build standalone executable
-pyinstaller --name "SmartBusReservation" --windowed --add-data "app\schema.sql;app" main.py
-```
-
-The resulting executable will be located in the `dist\SmartBusReservation\` directory.
+1. **Launch & Admin Overview**:
+   - Run `python main.py`.
+   - Log in with `admin` / `Admin@123`.
+   - Review the Dashboard KPI cards (Total Revenue, Active Routes, Fleet Size) and Matplotlib sales trend chart.
+   - Navigate to **Reports**: demonstrate relational views (`vw_route_revenue`, `vw_schedule_occupancy`), security audit logs, and click **Export CSV**.
+2. **Passenger Search & Interactive Seat Booking**:
+   - Log out or switch to passenger account `rahul_sharma` / `Rahul@123`.
+   - In **Search Buses**, choose `Pune` -> `Mumbai`.
+   - Click **Book Seats** to launch the interactive 2x2 coach seat selector.
+   - Select an available seat (`[FREE]` turns to blue `[SEL]`) and click **Proceed to Booking**.
+   - Review the passenger details, choose a payment method, and confirm the booking.
+   - Inspect the **Digital E-Ticket** modal: note the live QR code and click **Download PDF Boarding Pass** to generate the official ReportLab ticket.
+3. **Conductor Verification & Live QR Scan**:
+   - Log out and log in as conductor `conductor1` / `Conductor@123`.
+   - Navigate to the **Conductor Verification** portal.
+   - Select the journey schedule from the dropdown to inspect the real-time passenger manifest.
+   - Paste the booking reference (or scan via webcam) and click **Verify & Check-In Ticket**.
+   - Note the instant verification success banner and updated boarding log.
+   - Attempt to verify the same ticket again: demonstrate the **Duplicate Check-In Rejection** safety mechanism.
+4. **Concurrency Safety & Waitlist Demonstration**:
+   - Run `pytest -v tests/test_booking.py::test_concurrent_booking_safety` to show 5 simultaneous threads competing for one seat, proving that exactly 1 succeeds and 4 fail gracefully.
 
 ---
 
-## 9. Troubleshooting
+## 8. Academic Documentation Suite
 
-- **Error: "Python is not recognized"**: Ensure Python is added to your Windows PATH, or run via `py main.py`.
-- **Database lock or permission error**: The database is stored in `%LOCALAPPDATA%\SmartBusReservation\`. Check that the user has standard folder write permissions.
-- **Resetting data**: Run `python -m app.seed` to restore sample demonstration routes and users.
+- [`ER_DIAGRAM.md`](file:///E:/Projects/DBMS/ER_DIAGRAM.md): 13-table Entity-Relationship diagram, attributes, and cardinality matrix.
+- [`DATABASE_DESIGN.md`](file:///E:/Projects/DBMS/DATABASE_DESIGN.md): Complete data dictionary, 6 views, 5 stored procedures, and triggers.
+- [`NORMALIZATION.md`](file:///E:/Projects/DBMS/NORMALIZATION.md): Step-by-step 1NF, 2NF, 3NF, and BCNF normalization proofs with anomaly resolutions.
+- [`ARCHITECTURE.md`](file:///E:/Projects/DBMS/ARCHITECTURE.md): 4-tier layered architecture, concurrency locking model, and RBAC matrix.
+- [`TEST_REPORT.md`](file:///E:/Projects/DBMS/TEST_REPORT.md): Comprehensive test results and coverage logs (23/23 tests passing).
+- [`DEVELOPMENT_STATUS.md`](file:///E:/Projects/DBMS/DEVELOPMENT_STATUS.md): Incremental development logs and phase completion tracking.

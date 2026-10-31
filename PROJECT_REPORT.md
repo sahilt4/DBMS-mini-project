@@ -1,91 +1,157 @@
-# Smart Bus Reservation System - Project Report
-## DBMS Mini Project Report
+# Bus Reservation and Management System (BRMS)
+## Academic Project Report & Viva Reference Guide
+### Advanced Database Management Systems (DBMS)
 
 ---
 
-### 1. Title and Problem Statement
-**Title**: Smart Bus Reservation System  
-**Domain**: Database Management Systems (DBMS), Desktop Application Engineering  
-**Technology Stack**: Python 3.11, PySide6 (Qt for Python), SQLite 3, Matplotlib, Pytest  
+## 1. Title and Problem Statement
 
-**Problem Statement**:
-Inter-city bus travel in India requires accurate scheduling, real-time seat inventory management, and reliable booking records. Manual reservation systems and naive database architectures suffer from:
-1. Double-booking errors caused by race conditions during simultaneous reservation attempts.
-2. Loss of historical financial and audit data when cancelled bookings are physically deleted to free up seats.
-3. Update anomalies where cached availability counters drift away from actual ticket records.
-4. Vulnerability to SQL injection and unvalidated input.
+- **Project Title**: Bus Reservation and Management System (BRMS)
+- **Domain**: Advanced Database Management Systems (DBMS), Systems Architecture & Desktop Application Engineering
+- **Implementation Stack**: Python 3.11, PySide6 (Qt 6.12), MySQL 8.x (InnoDB) / Portable SQLite 3, Matplotlib, OpenCV, ReportLab, QRCode, Pytest.
 
----
-
-### 2. Objectives
-1. Implement a normalized relational schema in SQLite that enforces data integrity using Primary/Foreign Keys, CHECK constraints, and Partial Unique Indexes.
-2. Develop a native desktop GUI using PySide6 featuring a modern Windows sidebar layout, dynamic role-based access, and an interactive visual seat selection dialog with aisle representation.
-3. Implement an ACID transaction workflow using `BEGIN IMMEDIATE` to prevent race conditions and duplicate seat reservations.
-4. Provide administrative features for fleet management, route configuration, journey scheduling with conflict prevention, dashboard analytics with embedded Matplotlib trend charts, and CSV report export.
-5. Create comprehensive automated unit and integration tests using pytest covering constraints, authentication, concurrency, and transactions.
+### Problem Statement:
+Inter-city passenger transport networks require robust scheduling, real-time seat inventory reservation, fraud-resistant ticketing, and accurate financial reporting. Naive software architectures suffer from:
+1. **Double-Booking Race Conditions**: Concurrent users attempting to book the same seat simultaneously can corrupt inventory if queries lack transaction-level locking.
+2. **Loss of Historical Data on Cancellation**: Systems that physically delete cancelled booking rows destroy financial ledgers, route history, and passenger audit trails.
+3. **Update Anomalies**: Maintaining static `available_seats` counters leads to counter drift during unexpected failures or cancellations.
+4. **Ticket Counterfeiting & Inefficient Boarding**: Paper tickets are prone to fraud, slow manual checking, and lack instant validation against real-time database state.
 
 ---
 
-### 3. Methodology & Architecture
-The system employs a 4-tier layered architecture:
-- **Presentation Layer (`app/ui/`)**: Built using PySide6 widgets, modern Windows QSS stylesheets, interactive table views, and modal dialogs.
-- **Service Layer (`app/services/`)**: Enforces business logic, session management, input validation, and explicit SQLite transaction lifecycles (`BEGIN IMMEDIATE`, `COMMIT`, `ROLLBACK`).
-- **Data Access Layer (`app/repositories/`)**: Encapsulates parameterized SQL queries and database operations for each entity.
-- **Database Layer (`app/schema.sql`, `app/database.py`)**: SQLite 3 database operating with WAL mode and `PRAGMA foreign_keys = ON;`.
+## 2. Objectives and Innovations
+
+1. **Normalized Relational Schema**: Engineer a 13-table (+ Audit Log) relational schema in pure 3NF/BCNF enforcing referential integrity with foreign key constraints, check constraints, and partial unique indexes.
+2. **Transaction-Safe Seat Inventory**: Implement per-schedule physical seat inventory (`schedule_seats`) using row-level locking (`SELECT ... FOR UPDATE` / `BEGIN IMMEDIATE`) to prevent double-booking.
+3. **Role-Based Access Control (RBAC)**: Enforce distinct operational interfaces and permissions for **ADMIN**, **PASSENGER**, and **CONDUCTOR**.
+4. **Automated Waitlist Queue**: Maintain a FIFO waitlist priority queue (`waitlist`) that automatically allocates released seats to waitlisted passengers upon trip cancellation.
+5. **Digital Ticketing & QR Verification**: Generate cryptographically verifiable digital QR codes and downloadable ReportLab PDF boarding passes; provide live OpenCV camera scanning for onboard conductor verification.
+6. **Relational Views & Stored Procedures**: Encapsulate complex analytics in 6 relational views (`vw_route_revenue`, `vw_schedule_occupancy`, etc.) and 5 stored procedures.
+7. **Comprehensive Automated Testing**: Guarantee quality through 23 automated tests covering constraints, auth, concurrency, refunds, and ticket check-ins.
 
 ---
 
-### 4. Database Design & Schema
-The relational database consists of 7 normalized tables:
-- `users`: Authentication and roles (`admin`, `passenger`).
-- `routes`: City origins, destinations, distances in km with `CHECK(source <> destination)`.
-- `buses`: Physical fleet inventory with capacity limits (`CHECK(total_seats BETWEEN 1 AND 60)`).
-- `schedules`: Date and departure/arrival timestamps mapping buses to routes.
-- `passengers`: Traveler demographics linked to bookings.
-- `bookings`: Seat reservations with unique reference code (`BUS-YYYYMMDD-XXXXXXXX`).
-- `payments`: Simulated transaction records.
+## 3. System Architecture & Component Design
 
-**Key Database Innovation - Partial Unique Index**:
-```sql
-CREATE UNIQUE INDEX idx_bookings_active_seat
-ON bookings (schedule_id, seat_number)
-WHERE status = 'CONFIRMED';
+The application follows a clean 4-tier modular layered architecture:
+
 ```
-This guarantees that while a seat can never have more than one confirmed booking simultaneously, a cancelled booking releases its seat immediately without deleting historical booking records.
++-----------------------------------------------------------------+
+|                   1. Presentation Layer (PySide6)               |
+|  - Modern Windows Navigation Sidebar (RBAC View Switching)      |
+|  - Bus Search & 2x2 Coach Seating Dialog with Aisle             |
+|  - Fleet, Route, Schedule & Stop Management                     |
+|  - Conductor Onboard Portal (OpenCV Camera Scanner & Manifest)  |
+|  - Executive Dashboard, KPI Cards & Embedded Matplotlib Charts  |
++-----------------------------------------------------------------+
+                                |
++-----------------------------------------------------------------+
+|                   2. Business Logic Layer (Services)            |
+|  - AuthService: Bcrypt / PBKDF2 Password Hashing & RBAC Sessions|
+|  - BookingService: Atomic Transactions & Concurrency Locks      |
+|  - CancellationService: Tiered Refunds (100% / 75% / 50%)       |
+|  - WaitlistService: FIFO Queue Priority & Auto-Allocation       |
+|  - VerificationService: QR Token Parsing & Boarding Validation  |
+|  - ReportService: Analytical Queries & CSV Report Export        |
++-----------------------------------------------------------------+
+                                |
++-----------------------------------------------------------------+
+|                   3. Data Access Layer (Repositories)           |
+|  - Parameterized SQL execution (SQL Injection Prevention)       |
+|  - Repositories: User, Passenger, Bus, Route, Schedule, Seats,   |
+|    Booking, Payment, Refund, Waitlist, Checkin, Report          |
++-----------------------------------------------------------------+
+                                |
++-----------------------------------------------------------------+
+|                   4. Relational Database Engine                 |
+|  - MySQL 8.x (InnoDB Engine, utf8mb4, Stored Procedures, Views) |
+|  - Unified SQLite 3 Fallback Engine (WAL Mode, BEGIN IMMEDIATE) |
++-----------------------------------------------------------------+
+```
 
 ---
 
-### 5. Implementation Highlights
-- **Visual Seat Selector**: Dynamically generates a realistic 2x2 coach layout with an aisle from `buses.total_seats`, marking occupied seats as disabled and allowing single-click seat allocation.
-- **Live Seat Availability Calculation**: Avoids stored counters. Availability is always calculated dynamically as:
-  $$\text{Available} = \text{total\_seats} - \text{COUNT(CONFIRMED bookings)}$$
-- **Admin Dashboard & Analytics**: Features real-time KPI cards and an embedded Matplotlib trend chart showing daily revenues and booking volume.
-- **Export to CSV**: Utilizes Python's standard `csv` module to export reports directly to spreadsheets.
+## 4. Database Schema & Normalization
+
+The schema is normalized to **Third Normal Form (3NF)** and **Boyce-Codd Normal Form (BCNF)**:
+
+```
++---------------------------------------------------------------+
+|                       13 CORE RELATIONS                       |
++---------------------------------------------------------------+
+| 1. USERS            | Master accounts & RBAC roles            |
+| 2. PASSENGERS       | Passenger demographic details           |
+| 3. BUSES            | Fleet assets, capacities & types        |
+| 4. ROUTES           | Corridors, origins, destinations & km   |
+| 5. BUS_STOPS        | Physical stations & pickup points       |
+| 6. ROUTE_STOPS      | Ordered sequence of route waypoints     |
+| 7. SCHEDULES        | Timetable linking bus + route + times   |
+| 8. SCHEDULE_SEATS   | Authoritative per-trip seat inventory   |
+| 9. BOOKINGS         | Reservation records (unique reference)  |
+| 10. PAYMENTS        | Payment transaction ledger              |
+| 11. REFUNDS         | Cancellation penalty & refund ledger    |
+| 12. WAITLIST        | FIFO priority queue for sold-out trips  |
+| 13. TICKET_CHECKINS | Conductor verification log (QR / manual)|
+| 14. AUDIT_LOGS      | System-wide change data capture trail   |
++---------------------------------------------------------------+
+```
+
+### Relational Views:
+1. `vw_available_buses`: Active buses with assigned schedule counts.
+2. `vw_available_seats`: Live available, booked, and blocked seat counts.
+3. `vw_booking_details`: Full denormalized booking, passenger, route, and payment details.
+4. `vw_passenger_booking_history`: Passenger lifetime trips, total spend, and recency.
+5. `vw_route_revenue`: Route gross revenue, refunds issued, net profit, and passenger volume.
+6. `vw_schedule_occupancy`: Trip load factors and seat occupancy percentages.
 
 ---
 
-### 6. Testing & Quality Assurance
-The application includes 17 automated pytest test cases covering:
-1. Database schema initialization & table creation.
-2. Foreign key enforcement & constraint violations.
-3. Passenger account registration & profile generation.
-4. PBKDF2-HMAC password hashing and verification.
-5. Login authentication & bad credential rejection.
-6. Successful booking transaction execution.
-7. Immediate duplicate seat-booking rejection.
-8. Invalid seat number range validation.
-9. Concurrent multi-threaded booking safety.
-10. Seat availability reduction after booking.
-11. Seat availability restoration after cancellation.
-12. Successful cancellation & simulated refund.
-13. Prevention of unauthorized cancellation.
-14. Passenger booking data isolation.
-15. Dashboard aggregate metrics calculation.
-16. CSV report export and content verification.
+## 5. Key DBMS Highlights for Academic Viva
 
-**Test Results**: `17 passed in 5.70s` (100% pass rate).
+### Q1: How does your system prevent the "Double-Booking" anomaly?
+**Answer**:
+1. We utilize an authoritative per-schedule seat inventory table (`schedule_seats`).
+2. Booking operations execute inside an explicit atomic transaction (`START TRANSACTION` / `BEGIN IMMEDIATE`).
+3. The selected seat row is acquired using row-level locking (`SELECT ... FOR UPDATE`).
+4. If two concurrent users attempt to reserve the same seat simultaneously, the first transaction acquires the lock, updates the seat to `BOOKED`, and commits. The second transaction is blocked until the lock releases, sees that the seat is now `BOOKED`, and aborts with a graceful concurrency error.
+5. As a defense-in-depth measure, we enforce a partial unique index on the `bookings` table:
+   ```sql
+   CREATE UNIQUE INDEX idx_bookings_active_seat
+   ON bookings (schedule_id, seat_number)
+   WHERE booking_status = 'CONFIRMED';
+   ```
+
+### Q2: Why did you separate `USERS` and `PASSENGERS` into distinct tables?
+**Answer**:
+This satisfies **3NF and BCNF**:
+- A single user account (e.g., a family head or administrator) can book tickets for multiple individual passengers (spouses, children, senior citizens).
+- Authentication attributes (`email`, `password_hash`, `role`) depend on `user_id`.
+- Traveler attributes (`passenger_name`, `age`, `gender`, `phone`) depend on `passenger_id`.
+- Combining them into a single relation would create transitive functional dependencies and duplicate user accounts for every passenger profile.
+
+### Q3: How is historical data retained when a booking is cancelled?
+**Answer**:
+We never physically execute `DELETE FROM bookings`. Instead:
+1. The booking record is updated: `booking_status = 'CANCELLED'`.
+2. The corresponding seat in `schedule_seats` is updated back to `AVAILABLE`.
+3. A refund record is generated in `refunds` detailing the calculated refund amount and penalty percentage.
+4. The payment record status is updated to `REFUNDED`.
+5. Because our partial unique index only indexes rows where `booking_status = 'CONFIRMED'`, cancelling the booking immediately releases the seat for new reservations while preserving the complete historical, financial, and audit trail.
+
+### Q4: How does your waitlist auto-allocation mechanism work?
+**Answer**:
+When a confirmed booking is cancelled, the system inspects the schedule's remaining capacity:
+- If the schedule was at 100% capacity prior to cancellation, the system queries the `waitlist` table for the passenger with `queue_position = 1` and `waitlist_status = 'WAITING'`.
+- The released seat is automatically allocated to that passenger, updating their status to `ALLOCATED` and advancing subsequent queue positions.
 
 ---
 
-### 7. Conclusion
-The Smart Bus Reservation System demonstrates how relational database principles, transactions, and desktop user interfaces integrate into a complete, professional business application. It satisfies all college DBMS curriculum requirements and provides an outstanding demonstration platform for DBMS viva examinations.
+## 6. Verification and Test Results
+
+The test suite consists of **23 automated pytest test cases** passing with 100% success:
+- Multi-threaded concurrency race condition testing.
+- Password hashing and authentication isolation.
+- Referential integrity and constraint validation.
+- Conductor check-in and duplicate scan rejection.
+- Digital QR code and ReportLab PDF boarding pass generation.
+- Analytics and CSV report exports.

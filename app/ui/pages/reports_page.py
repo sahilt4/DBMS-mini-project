@@ -31,6 +31,7 @@ class ReportsPage(QWidget):
         ("bookings_by_route", "Aggregated Bookings & Revenue by Route"),
         ("bookings_by_bus", "Aggregated Bookings & Revenue by Bus"),
         ("bus_occupancy", "Bus Occupancy Rate Analysis (%)"),
+        ("audit_logs", "Security & System Audit Logs"),
     ]
 
     def __init__(self, parent=None):

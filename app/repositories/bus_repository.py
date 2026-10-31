@@ -1,19 +1,18 @@
 """
 Bus repository for managing buses table.
-Supports search, filtering, update, and soft-deactivation.
+Supports search, filtering, update, and status toggling across MySQL and SQLite.
 """
-import sqlite3
 from typing import Any, Dict, List, Optional
-
-from app.database import get_connection
+from app.database import get_connection, DatabaseConnection
 
 
 def create_bus(
-    bus_number: str,
+    registration_number: str,
     bus_name: str,
     bus_type: str,
-    total_seats: int,
-    conn: Optional[sqlite3.Connection] = None
+    capacity: int,
+    operational_status: str = "ACTIVE",
+    conn: Optional[DatabaseConnection] = None
 ) -> int:
     close_after = False
     if conn is None:
@@ -23,10 +22,10 @@ def create_bus(
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO buses (bus_number, bus_name, bus_type, total_seats, is_active)
-            VALUES (?, ?, ?, ?, 1);
+            INSERT INTO buses (registration_number, bus_name, bus_type, capacity, operational_status)
+            VALUES (%s, %s, %s, %s, %s);
             """,
-            (bus_number.strip().upper(), bus_name.strip(), bus_type.strip(), total_seats)
+            (registration_number.strip().upper(), bus_name.strip(), bus_type.strip(), capacity, operational_status.upper())
         )
         bus_id = cursor.lastrowid
         if close_after:
@@ -39,11 +38,12 @@ def create_bus(
 
 def update_bus(
     bus_id: int,
-    bus_number: str,
+    registration_number: str,
     bus_name: str,
     bus_type: str,
-    total_seats: int,
-    conn: Optional[sqlite3.Connection] = None
+    capacity: int,
+    operational_status: str = "ACTIVE",
+    conn: Optional[DatabaseConnection] = None
 ) -> bool:
     close_after = False
     if conn is None:
@@ -54,10 +54,10 @@ def update_bus(
         cursor.execute(
             """
             UPDATE buses
-            SET bus_number = ?, bus_name = ?, bus_type = ?, total_seats = ?
-            WHERE bus_id = ?;
+            SET registration_number = %s, bus_name = %s, bus_type = %s, capacity = %s, operational_status = %s
+            WHERE bus_id = %s;
             """,
-            (bus_number.strip().upper(), bus_name.strip(), bus_type.strip(), total_seats, bus_id)
+            (registration_number.strip().upper(), bus_name.strip(), bus_type.strip(), capacity, operational_status.upper(), bus_id)
         )
         affected = cursor.rowcount > 0
         if close_after:
@@ -71,7 +71,7 @@ def update_bus(
 def set_bus_status(
     bus_id: int,
     is_active: int,
-    conn: Optional[sqlite3.Connection] = None
+    conn: Optional[DatabaseConnection] = None
 ) -> bool:
     close_after = False
     if conn is None:
@@ -79,13 +79,14 @@ def set_bus_status(
         close_after = True
     try:
         cursor = conn.cursor()
+        status_str = "ACTIVE" if is_active else "DECOMMISSIONED"
         cursor.execute(
             """
             UPDATE buses
-            SET is_active = ?
-            WHERE bus_id = ?;
+            SET operational_status = %s
+            WHERE bus_id = %s;
             """,
-            (1 if is_active else 0, bus_id)
+            (status_str, bus_id)
         )
         affected = cursor.rowcount > 0
         if close_after:
@@ -96,7 +97,7 @@ def set_bus_status(
             conn.close()
 
 
-def find_bus_by_id(bus_id: int, conn: Optional[sqlite3.Connection] = None) -> Optional[Dict[str, Any]]:
+def find_bus_by_id(bus_id: int, conn: Optional[DatabaseConnection] = None) -> Optional[Dict[str, Any]]:
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -105,46 +106,25 @@ def find_bus_by_id(bus_id: int, conn: Optional[sqlite3.Connection] = None) -> Op
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT bus_id, bus_number, bus_name, bus_type, total_seats, is_active
+            SELECT bus_id, registration_number, registration_number AS bus_number,
+                   bus_name, bus_type, capacity, capacity AS total_seats,
+                   operational_status,
+                   CASE WHEN operational_status = 'ACTIVE' THEN 1 ELSE 0 END AS is_active
             FROM buses
-            WHERE bus_id = ?;
+            WHERE bus_id = %s;
             """,
             (bus_id,)
         )
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        if close_after:
-            conn.close()
-
-
-def find_bus_by_number(bus_number: str, conn: Optional[sqlite3.Connection] = None) -> Optional[Dict[str, Any]]:
-    close_after = False
-    if conn is None:
-        conn = get_connection()
-        close_after = True
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT bus_id, bus_number, bus_name, bus_type, total_seats, is_active
-            FROM buses
-            WHERE lower(bus_number) = lower(?);
-            """,
-            (bus_number.strip(),)
-        )
-        row = cursor.fetchone()
-        return dict(row) if row else None
+        return cursor.fetchone()
     finally:
         if close_after:
             conn.close()
 
 
 def list_buses(
-    search: Optional[str] = None,
+    active_only: bool = True,
     bus_type: Optional[str] = None,
-    is_active: Optional[int] = None,
-    conn: Optional[sqlite3.Connection] = None
+    conn: Optional[DatabaseConnection] = None
 ) -> List[Dict[str, Any]]:
     close_after = False
     if conn is None:
@@ -152,25 +132,26 @@ def list_buses(
         close_after = True
     try:
         cursor = conn.cursor()
-        query = ["SELECT bus_id, bus_number, bus_name, bus_type, total_seats, is_active FROM buses WHERE 1=1"]
+        conditions = []
         params = []
-
-        if search:
-            query.append("AND (lower(bus_number) LIKE ? OR lower(bus_name) LIKE ?)")
-            pattern = f"%{search.strip().lower()}%"
-            params.extend([pattern, pattern])
-
-        if bus_type and bus_type != "All":
-            query.append("AND bus_type = ?")
+        if active_only:
+            conditions.append("operational_status = 'ACTIVE'")
+        if bus_type:
+            conditions.append("bus_type = %s")
             params.append(bus_type)
 
-        if is_active is not None:
-            query.append("AND is_active = ?")
-            params.append(1 if is_active else 0)
-
-        query.append("ORDER BY bus_name ASC")
-        cursor.execute(" ".join(query), params)
-        return [dict(row) for row in cursor.fetchall()]
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        query = f"""
+            SELECT bus_id, registration_number, registration_number AS bus_number,
+                   bus_name, bus_type, capacity, capacity AS total_seats,
+                   operational_status,
+                   CASE WHEN operational_status = 'ACTIVE' THEN 1 ELSE 0 END AS is_active
+            FROM buses
+            {where_clause}
+            ORDER BY bus_name ASC;
+        """
+        cursor.execute(query, params)
+        return cursor.fetchall()
     finally:
         if close_after:
             conn.close()

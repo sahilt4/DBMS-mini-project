@@ -1,6 +1,6 @@
 """
 Authentication and session management service.
-Handles login, registration, password verification, and role-based checks.
+Handles login, registration, password verification, and RBAC (admin, passenger, conductor).
 """
 from typing import Any, Dict, Optional
 
@@ -25,30 +25,48 @@ def is_authenticated() -> bool:
 
 
 def is_admin() -> bool:
-    return _CURRENT_USER is not None and _CURRENT_USER.get("role") == "admin"
+    if not _CURRENT_USER:
+        return False
+    return str(_CURRENT_USER.get("role", "")).lower() == "admin"
 
 
-def login(username: str, password: str) -> Dict[str, Any]:
+def is_conductor() -> bool:
+    if not _CURRENT_USER:
+        return False
+    return str(_CURRENT_USER.get("role", "")).lower() == "conductor"
+
+
+def is_passenger() -> bool:
+    if not _CURRENT_USER:
+        return False
+    return str(_CURRENT_USER.get("role", "")).lower() == "passenger"
+
+
+def login(username_or_email: str, password: str) -> Dict[str, Any]:
     """
-    Validates username and password against PBKDF2-HMAC hash.
-    Sets user in current session upon success.
+    Validates username or email and password against bcrypt / PBKDF2 hash.
+    Sets active user in session upon success.
     """
-    u = username.strip()
+    ident = username_or_email.strip()
     p = password.strip()
-    if not u or not p:
-        raise ValueError("Username and password are required.")
+    if not ident or not p:
+        raise ValueError("Username/Email and password are required.")
 
-    user = user_repository.find_by_username(u)
+    user = user_repository.find_by_username_or_email(ident)
     if not user:
         raise ValueError("Invalid username or password.")
 
     if not verify_password(p, user["password_hash"]):
         raise ValueError("Invalid username or password.")
 
+    if user.get("account_status") in ("SUSPENDED", "INACTIVE"):
+        raise ValueError(f"Account is {user['account_status'].lower()}. Please contact system support.")
+
     # Remove password hash from session object
     session_user = {k: v for k, v in user.items() if k != "password_hash"}
-    
-    # Also load passenger profile details if this is a passenger user
+    session_user["role"] = str(session_user["role"]).lower()
+
+    # Load passenger profile details if this is a passenger user
     if session_user["role"] == "passenger":
         passenger_profile = passenger_repository.find_passenger_by_user_id(session_user["user_id"])
         session_user["passenger_profile"] = passenger_profile
@@ -91,28 +109,32 @@ def register(
     if phone and len(phone.strip()) < 10:
         raise ValueError("Phone number must have at least 10 digits.")
 
-    existing = user_repository.find_by_username(u)
+    existing = user_repository.find_by_username_or_email(u)
     if existing:
         raise ValueError(f"Username '{u}' is already taken. Please choose another.")
 
     pwd_hash = hash_password(p)
     user_id = user_repository.create_user(
         name=n,
-        username=u,
+        username_or_email=u,
         password_hash=pwd_hash,
-        role="passenger"
+        role="passenger",
+        phone=phone.strip() if phone else None
     )
 
-    passenger_repository.create_passenger(
+    # Automatically create linked passenger profile
+    passenger_id = passenger_repository.create_passenger(
         full_name=n,
         age=age,
         gender=gender or "Other",
-        phone=phone or "",
+        phone=phone.strip() if phone else None,
         user_id=user_id
     )
 
     user = user_repository.find_by_id(user_id)
-    session_user = {k: v for k, v in user.items() if k != "password_hash"}
-    session_user["passenger_profile"] = passenger_repository.find_passenger_by_user_id(user_id)
-    set_current_user(session_user)
-    return session_user
+    profile = passenger_repository.find_passenger_by_id(passenger_id)
+    res = dict(user)
+    res.pop("password_hash", None)
+    res["role"] = str(res["role"]).lower()
+    res["passenger_profile"] = profile
+    return res

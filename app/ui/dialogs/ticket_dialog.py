@@ -1,10 +1,11 @@
 """
 Ticket Details Dialog.
-Renders an elegant digital boarding pass / e-ticket with printable format.
+Renders an elegant digital boarding pass / e-ticket with live QR code and PDF export.
 """
 from pathlib import Path
 from typing import Any, Dict
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -19,16 +20,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.utils.qr_generator import generate_qr_payload, generate_qr_bytes
+from app.utils.pdf_generator import generate_ticket_pdf
+
 
 class TicketDialog(QDialog):
-    """Digital E-Ticket view and export modal."""
+    """Digital E-Ticket view and export modal with QR code and PDF support."""
 
     def __init__(self, ticket: Dict[str, Any], parent=None):
         super().__init__(parent)
         self.ticket = ticket
         self.setWindowTitle(f"E-Ticket - {ticket['booking_reference']}")
-        self.setMinimumWidth(520)
-        self.setMaximumHeight(700)
+        self.setMinimumWidth(540)
+        self.setMaximumHeight(740)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self._init_ui()
 
@@ -52,14 +56,14 @@ class TicketDialog(QDialog):
 
         # Header: Company & Reference
         h_row = QHBoxLayout()
-        comp_title = QLabel("SMART BUS TRAVELS")
-        comp_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #2563EB; letter-spacing: 1px;")
+        comp_title = QLabel("BUS RESERVATION & MANAGEMENT SYSTEM")
+        comp_title.setStyleSheet("font-size: 15px; font-weight: 800; color: #1E3A8A; letter-spacing: 0.5px;")
         h_row.addWidget(comp_title)
         h_row.addStretch()
 
-        status_text = self.ticket.get("status", "CONFIRMED")
+        status_text = self.ticket.get("status", self.ticket.get("booking_status", "CONFIRMED"))
         status_badge = QLabel(f"● {status_text}")
-        if status_text == "CONFIRMED":
+        if status_text in ("CONFIRMED", "CHECKED_IN"):
             status_badge.setStyleSheet(
                 "background: #DCFCE7; color: #15803D; font-weight: 700; padding: 4px 10px; border-radius: 10px;"
             )
@@ -103,85 +107,77 @@ class TicketDialog(QDialog):
         grid.addWidget(seat_lbl, 4, 1)
 
         grid.addWidget(QLabel("<b>Passenger:</b>"), 5, 0)
-        p_name = self.ticket.get('full_name', 'N/A')
+        p_name = self.ticket.get('passenger_name', self.ticket.get('full_name', 'N/A'))
         p_age = self.ticket.get('age', '')
         p_phone = self.ticket.get('phone', '')
         grid.addWidget(QLabel(f"{p_name} ({p_age} yrs) | {p_phone}"), 5, 1)
 
         grid.addWidget(QLabel("<b>Amount Paid:</b>"), 6, 0)
-        amt_lbl = QLabel(f"<b>Rs. {float(self.ticket['amount']):.2f}</b> ({self.ticket.get('payment_method', 'UPI')})")
+        amt_val = float(self.ticket.get('amount', self.ticket.get('total_amount', 0)))
+        amt_lbl = QLabel(f"<b>Rs. {amt_val:.2f}</b> ({self.ticket.get('payment_method', 'UPI')})")
         amt_lbl.setTextFormat(Qt.RichText)
         grid.addWidget(amt_lbl, 6, 1)
 
         if self.ticket.get("cancellation_date"):
             grid.addWidget(QLabel("<b>Cancelled On:</b>"), 7, 0)
-            grid.addWidget(QLabel(f"{self.ticket['cancellation_date']} (Refund: {self.ticket.get('payment_status', 'REFUNDED')})"), 7, 1)
+            grid.addWidget(QLabel(f"{self.ticket['cancellation_date']}"), 7, 1)
 
         t_layout.addLayout(grid)
 
-        # Barcode visual simulation
-        barcode = QLabel("||| | ||||| || | |||| ||| |||| | ||| |||||| | ||||| |||")
-        barcode.setAlignment(Qt.AlignCenter)
-        barcode.setStyleSheet("font-family: monospace; font-size: 15px; color: #1E293B; margin-top: 6px;")
-        t_layout.addWidget(barcode)
+        # Real QR Code Generation & Display
+        qr_row = QHBoxLayout()
+        qr_row.addStretch()
+
+        qr_box = QVBoxLayout()
+        qr_box.setAlignment(Qt.AlignCenter)
+
+        try:
+            payload = generate_qr_payload(self.ticket)
+            qr_bytes = generate_qr_bytes(payload)
+            qimg = QImage.fromData(qr_bytes)
+            pixmap = QPixmap.fromImage(qimg).scaled(140, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            qr_label = QLabel()
+            qr_label.setPixmap(pixmap)
+            qr_label.setAlignment(Qt.AlignCenter)
+            qr_box.addWidget(qr_label)
+        except Exception:
+            qr_box.addWidget(QLabel("[QR Verification Available]"))
+
+        caption = QLabel("Scan with Conductor App to Verify")
+        caption.setStyleSheet("font-size: 11px; color: #64748B; font-weight: 500;")
+        caption.setAlignment(Qt.AlignCenter)
+        qr_box.addWidget(caption)
+
+        qr_row.addLayout(qr_box)
+        qr_row.addStretch()
+        t_layout.addLayout(qr_row)
 
         scroll_area.setWidget(ticket_card)
         main_layout.addWidget(scroll_area)
 
         # Action Buttons (Always pinned visibly at the bottom!)
         btn_layout = QHBoxLayout()
-        self.export_btn = QPushButton("📄 Save / Export Ticket (TXT)")
-        self.export_btn.clicked.connect(self._handle_export_ticket)
-        btn_layout.addWidget(self.export_btn)
+        self.pdf_btn = QPushButton("📄 Download PDF Ticket")
+        self.pdf_btn.setProperty("class", "primaryButton")
+        self.pdf_btn.clicked.connect(self._handle_export_pdf)
+        btn_layout.addWidget(self.pdf_btn)
 
         self.close_btn = QPushButton("Close")
-        self.close_btn.setProperty("class", "primaryButton")
         self.close_btn.setMinimumHeight(34)
         self.close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(self.close_btn)
 
         main_layout.addLayout(btn_layout)
 
-    def _handle_export_ticket(self):
-        default_filename = f"Ticket_{self.ticket['booking_reference']}.txt"
-        filepath, _ = QFileDialog.getSaveFileName(self, "Save Ticket", default_filename, "Text Files (*.txt)")
+    def _handle_export_pdf(self):
+        default_filename = f"Ticket_{self.ticket['booking_reference']}.pdf"
+        filepath, _ = QFileDialog.getSaveFileName(self, "Save E-Ticket (PDF)", default_filename, "PDF Documents (*.pdf)")
         if not filepath:
             return
 
-        ticket_content = f"""
-============================================================
-              SMART BUS RESERVATION SYSTEM
-                     E-TICKET RECEIPT
-============================================================
-Booking Reference : {self.ticket['booking_reference']}
-Booking Status    : {self.ticket['status']}
-Booking Date      : {self.ticket.get('booking_date', '')}
-
-PASSENGER DETAILS:
-Passenger Name    : {self.ticket.get('full_name', '')}
-Age / Gender      : {self.ticket.get('age', '')} / {self.ticket.get('gender', '')}
-Contact Phone     : {self.ticket.get('phone', '')}
-
-JOURNEY DETAILS:
-Route             : {self.ticket['source']} to {self.ticket['destination']}
-Travel Date       : {self.ticket['travel_date']}
-Departure Time    : {self.ticket['departure_time']}
-Arrival Time      : {self.ticket['arrival_time']}
-Bus Name & Number : {self.ticket['bus_name']} ({self.ticket['bus_number']})
-Bus Type          : {self.ticket['bus_type']}
-Seat Number       : #{self.ticket['seat_number']}
-
-PAYMENT DETAILS:
-Fare Amount       : Rs. {float(self.ticket['amount']):.2f}
-Payment Method    : {self.ticket.get('payment_method', 'UPI')}
-Payment Status    : {self.ticket.get('payment_status', 'PAID')}
-============================================================
-           Thank you for traveling with Smart Bus!
-============================================================
-"""
         try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(ticket_content)
-            QMessageBox.information(self, "Export Successful", f"Ticket successfully saved to:\n{filepath}")
+            target_path = Path(filepath)
+            generate_ticket_pdf(self.ticket, output_path=target_path)
+            QMessageBox.information(self, "Export Successful", f"Official PDF E-Ticket successfully saved to:\n{target_path}")
         except Exception as err:
-            QMessageBox.critical(self, "Export Failed", f"Could not save ticket: {err}")
+            QMessageBox.critical(self, "Export Failed", f"Could not save PDF ticket: {err}")

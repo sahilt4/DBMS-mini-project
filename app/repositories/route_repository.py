@@ -1,24 +1,24 @@
 """
-Route repository for managing bus routes table.
-Validates city names and enforces uniqueness of active source-destination pairs.
+Route repository for managing bus routes and intermediate stops.
+Validates city names and manages stops catalog.
 """
-import sqlite3
 from typing import Any, Dict, List, Optional
-
-from app.database import get_connection
+from app.database import get_connection, DatabaseConnection
 
 
 def create_route(
     source: str,
     destination: str,
-    distance_km: float,
-    conn: Optional[sqlite3.Connection] = None
+    distance: float,
+    estimated_duration: int = 180,
+    route_status: str = "ACTIVE",
+    conn: Optional[DatabaseConnection] = None
 ) -> int:
     src = source.strip()
     dst = destination.strip()
     if src.lower() == dst.lower():
         raise ValueError("Source and destination cities cannot be identical.")
-    if distance_km <= 0:
+    if distance <= 0:
         raise ValueError("Distance must be greater than zero.")
 
     close_after = False
@@ -29,10 +29,10 @@ def create_route(
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO routes (source, destination, distance_km, is_active)
-            VALUES (?, ?, ?, 1);
+            INSERT INTO routes (source, destination, distance, estimated_duration, route_status)
+            VALUES (%s, %s, %s, %s, %s);
             """,
-            (src, dst, distance_km)
+            (src, dst, distance, estimated_duration, route_status.upper())
         )
         route_id = cursor.lastrowid
         if close_after:
@@ -47,14 +47,16 @@ def update_route(
     route_id: int,
     source: str,
     destination: str,
-    distance_km: float,
-    conn: Optional[sqlite3.Connection] = None
+    distance: float,
+    estimated_duration: int = 180,
+    route_status: str = "ACTIVE",
+    conn: Optional[DatabaseConnection] = None
 ) -> bool:
     src = source.strip()
     dst = destination.strip()
     if src.lower() == dst.lower():
         raise ValueError("Source and destination cities cannot be identical.")
-    if distance_km <= 0:
+    if distance <= 0:
         raise ValueError("Distance must be greater than zero.")
 
     close_after = False
@@ -66,10 +68,10 @@ def update_route(
         cursor.execute(
             """
             UPDATE routes
-            SET source = ?, destination = ?, distance_km = ?
-            WHERE route_id = ?;
+            SET source = %s, destination = %s, distance = %s, estimated_duration = %s, route_status = %s
+            WHERE route_id = %s;
             """,
-            (src, dst, distance_km, route_id)
+            (src, dst, distance, estimated_duration, route_status.upper(), route_id)
         )
         affected = cursor.rowcount > 0
         if close_after:
@@ -83,7 +85,7 @@ def update_route(
 def set_route_status(
     route_id: int,
     is_active: int,
-    conn: Optional[sqlite3.Connection] = None
+    conn: Optional[DatabaseConnection] = None
 ) -> bool:
     close_after = False
     if conn is None:
@@ -91,13 +93,14 @@ def set_route_status(
         close_after = True
     try:
         cursor = conn.cursor()
+        status_str = "ACTIVE" if is_active else "INACTIVE"
         cursor.execute(
             """
             UPDATE routes
-            SET is_active = ?
-            WHERE route_id = ?;
+            SET route_status = %s
+            WHERE route_id = %s;
             """,
-            (1 if is_active else 0, route_id)
+            (status_str, route_id)
         )
         affected = cursor.rowcount > 0
         if close_after:
@@ -108,7 +111,7 @@ def set_route_status(
             conn.close()
 
 
-def find_route_by_id(route_id: int, conn: Optional[sqlite3.Connection] = None) -> Optional[Dict[str, Any]]:
+def find_route_by_id(route_id: int, conn: Optional[DatabaseConnection] = None) -> Optional[Dict[str, Any]]:
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -117,45 +120,23 @@ def find_route_by_id(route_id: int, conn: Optional[sqlite3.Connection] = None) -
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT route_id, source, destination, distance_km, is_active
+            SELECT route_id, source, destination, distance, distance AS distance_km,
+                   estimated_duration, route_status,
+                   CASE WHEN route_status = 'ACTIVE' THEN 1 ELSE 0 END AS is_active
             FROM routes
-            WHERE route_id = ?;
+            WHERE route_id = %s;
             """,
             (route_id,)
         )
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        if close_after:
-            conn.close()
-
-
-def find_route_by_cities(source: str, destination: str, conn: Optional[sqlite3.Connection] = None) -> Optional[Dict[str, Any]]:
-    close_after = False
-    if conn is None:
-        conn = get_connection()
-        close_after = True
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT route_id, source, destination, distance_km, is_active
-            FROM routes
-            WHERE lower(source) = lower(?) AND lower(destination) = lower(?);
-            """,
-            (source.strip(), destination.strip())
-        )
-        row = cursor.fetchone()
-        return dict(row) if row else None
+        return cursor.fetchone()
     finally:
         if close_after:
             conn.close()
 
 
 def list_routes(
-    search: Optional[str] = None,
-    is_active: Optional[int] = None,
-    conn: Optional[sqlite3.Connection] = None
+    active_only: bool = True,
+    conn: Optional[DatabaseConnection] = None
 ) -> List[Dict[str, Any]]:
     close_after = False
     if conn is None:
@@ -163,60 +144,129 @@ def list_routes(
         close_after = True
     try:
         cursor = conn.cursor()
-        query = ["SELECT route_id, source, destination, distance_km, is_active FROM routes WHERE 1=1"]
-        params = []
-
-        if search:
-            query.append("AND (lower(source) LIKE ? OR lower(destination) LIKE ?)")
-            pat = f"%{search.strip().lower()}%"
-            params.extend([pat, pat])
-
-        if is_active is not None:
-            query.append("AND is_active = ?")
-            params.append(1 if is_active else 0)
-
-        query.append("ORDER BY source ASC, destination ASC")
-        cursor.execute(" ".join(query), params)
-        return [dict(row) for row in cursor.fetchall()]
+        if active_only:
+            cursor.execute(
+                """
+                SELECT route_id, source, destination, distance, distance AS distance_km,
+                       estimated_duration, route_status,
+                       CASE WHEN route_status = 'ACTIVE' THEN 1 ELSE 0 END AS is_active
+                FROM routes
+                WHERE route_status = 'ACTIVE'
+                ORDER BY source, destination;
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT route_id, source, destination, distance, distance AS distance_km,
+                       estimated_duration, route_status,
+                       CASE WHEN route_status = 'ACTIVE' THEN 1 ELSE 0 END AS is_active
+                FROM routes
+                ORDER BY source, destination;
+                """
+            )
+        return cursor.fetchall()
     finally:
         if close_after:
             conn.close()
 
 
-def get_unique_sources(conn: Optional[sqlite3.Connection] = None) -> List[str]:
+def get_unique_sources(conn: Optional[DatabaseConnection] = None) -> List[str]:
     close_after = False
     if conn is None:
         conn = get_connection()
         close_after = True
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT source FROM routes WHERE is_active = 1 ORDER BY source ASC;")
+        cursor.execute("SELECT DISTINCT source FROM routes WHERE route_status = 'ACTIVE' ORDER BY source ASC;")
         return [row["source"] for row in cursor.fetchall()]
     finally:
         if close_after:
             conn.close()
 
 
-def get_unique_destinations(source: Optional[str] = None, conn: Optional[sqlite3.Connection] = None) -> List[str]:
+def get_unique_destinations(conn: Optional[DatabaseConnection] = None) -> List[str]:
     close_after = False
     if conn is None:
         conn = get_connection()
         close_after = True
     try:
         cursor = conn.cursor()
-        if source:
-            cursor.execute(
-                """
-                SELECT DISTINCT destination
-                FROM routes
-                WHERE is_active = 1 AND lower(source) = lower(?)
-                ORDER BY destination ASC;
-                """,
-                (source.strip(),)
-            )
-        else:
-            cursor.execute("SELECT DISTINCT destination FROM routes WHERE is_active = 1 ORDER BY destination ASC;")
+        cursor.execute("SELECT DISTINCT destination FROM routes WHERE route_status = 'ACTIVE' ORDER BY destination ASC;")
         return [row["destination"] for row in cursor.fetchall()]
+    finally:
+        if close_after:
+            conn.close()
+
+
+# ----------------------------------------------------------------------------
+# BUS STOPS & ROUTE STOPS (Intermediate Points)
+# ----------------------------------------------------------------------------
+
+def list_bus_stops(conn: Optional[DatabaseConnection] = None) -> List[Dict[str, Any]]:
+    close_after = False
+    if conn is None:
+        conn = get_connection()
+        close_after = True
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT stop_id, stop_name, city, address FROM bus_stops ORDER BY city, stop_name;")
+        return cursor.fetchall()
+    finally:
+        if close_after:
+            conn.close()
+
+
+def get_route_stops(route_id: int, conn: Optional[DatabaseConnection] = None) -> List[Dict[str, Any]]:
+    close_after = False
+    if conn is None:
+        conn = get_connection()
+        close_after = True
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT rs.route_stop_id, rs.route_id, rs.stop_id, rs.stop_sequence,
+                   rs.distance_from_origin, rs.arrival_offset_minutes,
+                   bs.stop_name, bs.city, bs.address
+            FROM route_stops rs
+            JOIN bus_stops bs ON rs.stop_id = bs.stop_id
+            WHERE rs.route_id = %s
+            ORDER BY rs.stop_sequence ASC;
+            """,
+            (route_id,)
+        )
+        return cursor.fetchall()
+    finally:
+        if close_after:
+            conn.close()
+
+
+def add_route_stop(
+    route_id: int,
+    stop_id: int,
+    stop_sequence: int,
+    distance_from_origin: float = 0.0,
+    arrival_offset_minutes: int = 0,
+    conn: Optional[DatabaseConnection] = None
+) -> int:
+    close_after = False
+    if conn is None:
+        conn = get_connection()
+        close_after = True
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO route_stops (route_id, stop_id, stop_sequence, distance_from_origin, arrival_offset_minutes)
+            VALUES (%s, %s, %s, %s, %s);
+            """,
+            (route_id, stop_id, stop_sequence, distance_from_origin, arrival_offset_minutes)
+        )
+        rs_id = cursor.lastrowid
+        if close_after:
+            conn.commit()
+        return rs_id
     finally:
         if close_after:
             conn.close()

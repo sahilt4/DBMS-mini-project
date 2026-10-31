@@ -24,6 +24,8 @@ def get_report(report_type: str) -> Tuple[List[str], List[List[Any]]]:
         return report_repository.report_bookings_by_bus()
     elif report_type == "bus_occupancy":
         return report_repository.report_bus_occupancy()
+    elif report_type == "audit_logs":
+        return report_repository.report_audit_logs()
     else:
         raise ValueError(f"Unknown report type: {report_type}")
 

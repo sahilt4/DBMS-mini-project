@@ -1,10 +1,8 @@
 """
 Passenger repository for managing passenger records linked to bookings or users.
 """
-import sqlite3
 from typing import Any, Dict, List, Optional
-
-from app.database import get_connection
+from app.database import get_connection, DatabaseConnection
 
 
 def create_passenger(
@@ -13,7 +11,7 @@ def create_passenger(
     gender: str,
     phone: str,
     user_id: Optional[int] = None,
-    conn: Optional[sqlite3.Connection] = None
+    conn: Optional[DatabaseConnection] = None
 ) -> int:
     close_after = False
     if conn is None:
@@ -21,12 +19,13 @@ def create_passenger(
         close_after = True
     try:
         cursor = conn.cursor()
+        clean_name = full_name.strip()
         cursor.execute(
             """
-            INSERT INTO passengers (user_id, full_name, age, gender, phone)
-            VALUES (?, ?, ?, ?, ?);
+            INSERT INTO passengers (user_id, full_name, passenger_name, age, gender, phone)
+            VALUES (%s, %s, %s, %s, %s, %s);
             """,
-            (user_id, full_name.strip(), age, gender.strip() if gender else None, phone.strip() if phone else None)
+            (user_id, clean_name, clean_name, age, gender.strip() if gender else "Other", phone.strip() if phone else None)
         )
         passenger_id = cursor.lastrowid
         if close_after:
@@ -37,7 +36,7 @@ def create_passenger(
             conn.close()
 
 
-def find_passenger_by_id(passenger_id: int, conn: Optional[sqlite3.Connection] = None) -> Optional[Dict[str, Any]]:
+def find_passenger_by_id(passenger_id: int, conn: Optional[DatabaseConnection] = None) -> Optional[Dict[str, Any]]:
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -46,20 +45,20 @@ def find_passenger_by_id(passenger_id: int, conn: Optional[sqlite3.Connection] =
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT passenger_id, user_id, full_name, age, gender, phone, created_at
+            SELECT passenger_id, user_id, passenger_name, passenger_name AS full_name,
+                   age, gender, phone, created_at
             FROM passengers
-            WHERE passenger_id = ?;
+            WHERE passenger_id = %s;
             """,
             (passenger_id,)
         )
-        row = cursor.fetchone()
-        return dict(row) if row else None
+        return cursor.fetchone()
     finally:
         if close_after:
             conn.close()
 
 
-def find_passenger_by_user_id(user_id: int, conn: Optional[sqlite3.Connection] = None) -> Optional[Dict[str, Any]]:
+def find_passenger_by_user_id(user_id: int, conn: Optional[DatabaseConnection] = None) -> Optional[Dict[str, Any]]:
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -68,16 +67,16 @@ def find_passenger_by_user_id(user_id: int, conn: Optional[sqlite3.Connection] =
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT passenger_id, user_id, full_name, age, gender, phone, created_at
+            SELECT passenger_id, user_id, passenger_name, passenger_name AS full_name,
+                   age, gender, phone, created_at
             FROM passengers
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY passenger_id DESC
             LIMIT 1;
             """,
             (user_id,)
         )
-        row = cursor.fetchone()
-        return dict(row) if row else None
+        return cursor.fetchone()
     finally:
         if close_after:
             conn.close()
@@ -89,7 +88,7 @@ def update_passenger(
     age: int,
     gender: str,
     phone: str,
-    conn: Optional[sqlite3.Connection] = None
+    conn: Optional[DatabaseConnection] = None
 ) -> bool:
     close_after = False
     if conn is None:
@@ -100,46 +99,35 @@ def update_passenger(
         cursor.execute(
             """
             UPDATE passengers
-            SET full_name = ?, age = ?, gender = ?, phone = ?
-            WHERE passenger_id = ?;
+            SET passenger_name = %s, age = %s, gender = %s, phone = %s
+            WHERE passenger_id = %s;
             """,
-            (full_name.strip(), age, gender.strip(), phone.strip(), passenger_id)
+            (full_name.strip(), age, gender.strip(), phone.strip() if phone else None, passenger_id)
         )
-        affected = cursor.rowcount > 0
         if close_after:
             conn.commit()
-        return affected
+        return cursor.rowcount > 0
     finally:
         if close_after:
             conn.close()
 
 
-def list_passengers(search: Optional[str] = None, conn: Optional[sqlite3.Connection] = None) -> List[Dict[str, Any]]:
+def list_passengers(conn: Optional[DatabaseConnection] = None) -> List[Dict[str, Any]]:
     close_after = False
     if conn is None:
         conn = get_connection()
         close_after = True
     try:
         cursor = conn.cursor()
-        query = [
+        cursor.execute(
             """
-            SELECT p.passenger_id, p.user_id, p.full_name, p.age, p.gender, p.phone, p.created_at,
-                   u.username,
-                   (SELECT COUNT(*) FROM bookings b WHERE b.passenger_id = p.passenger_id) AS total_bookings
-            FROM passengers p
-            LEFT JOIN users u ON p.user_id = u.user_id
-            WHERE 1=1
+            SELECT passenger_id, user_id, passenger_name, passenger_name AS full_name,
+                   age, gender, phone, created_at
+            FROM passengers
+            ORDER BY passenger_id DESC;
             """
-        ]
-        params = []
-        if search:
-            query.append("AND (lower(p.full_name) LIKE ? OR lower(p.phone) LIKE ? OR lower(u.username) LIKE ?)")
-            pat = f"%{search.strip().lower()}%"
-            params.extend([pat, pat, pat])
-        query.append("ORDER BY p.passenger_id DESC")
-
-        cursor.execute(" ".join(query), params)
-        return [dict(row) for row in cursor.fetchall()]
+        )
+        return cursor.fetchall()
     finally:
         if close_after:
             conn.close()

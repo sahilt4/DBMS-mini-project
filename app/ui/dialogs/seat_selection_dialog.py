@@ -38,7 +38,8 @@ class SeatSelectionDialog(QDialog):
             raise ValueError(f"Schedule #{schedule_id} not found.")
 
         self.setWindowTitle(f"Select Seat - {self.schedule['bus_name']} ({self.schedule['bus_number']})")
-        self.setFixedSize(620, 680)
+        self.setMinimumWidth(560)
+        self.resize(600, 660)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self._init_ui()
         self._refresh_seats()

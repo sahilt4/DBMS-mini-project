@@ -1,18 +1,18 @@
 """
 Report repository for database statistics, analytical queries, and CSV exports.
-Demonstrates SQL JOINs, GROUP BY, aggregates (COUNT, SUM, AVG), and subqueries.
+Leverages relational views (vw_route_revenue, vw_schedule_occupancy, audit_logs)
+and standard aggregate queries.
 """
+import csv
+import io
 from datetime import date
-import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.database import get_connection
+from app.database import get_connection, DatabaseConnection
 
 
-def get_dashboard_stats(conn: Optional[sqlite3.Connection] = None) -> Dict[str, Any]:
-    """
-    Computes real-time analytical statistics for the Admin Dashboard using aggregate queries.
-    """
+def get_dashboard_stats(conn: Optional[DatabaseConnection] = None) -> Dict[str, Any]:
+    """Computes real-time analytical statistics for the Admin Dashboard."""
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -21,24 +21,25 @@ def get_dashboard_stats(conn: Optional[sqlite3.Connection] = None) -> Dict[str, 
         cursor = conn.cursor()
         stats = {}
 
-        # 1. Total active buses
-        cursor.execute("SELECT COUNT(*) AS cnt FROM buses WHERE is_active = 1;")
+        # 1. Active buses
+        cursor.execute("SELECT COUNT(*) AS cnt FROM buses WHERE operational_status = 'ACTIVE';")
         stats["active_buses"] = cursor.fetchone()["cnt"]
 
-        # 2. Total active routes
-        cursor.execute("SELECT COUNT(*) AS cnt FROM routes WHERE is_active = 1;")
+        # 2. Active routes
+        cursor.execute("SELECT COUNT(*) AS cnt FROM routes WHERE route_status = 'ACTIVE';")
         stats["active_routes"] = cursor.fetchone()["cnt"]
 
         # 3. Today's scheduled journeys
         today_str = date.today().isoformat()
         cursor.execute(
-            "SELECT COUNT(*) AS cnt FROM schedules WHERE travel_date = ? AND status = 'SCHEDULED';",
+            "SELECT COUNT(*) AS cnt FROM schedules WHERE SUBSTR(departure_datetime, 1, 10) = %s AND schedule_status = 'SCHEDULED';",
             (today_str,)
         )
-        stats["today_schedules"] = cursor.fetchone()["cnt"]
+        row = cursor.fetchone()
+        stats["today_schedules"] = row["cnt"] if row else 0
 
         # 4. Total confirmed bookings
-        cursor.execute("SELECT COUNT(*) AS cnt FROM bookings WHERE status = 'CONFIRMED';")
+        cursor.execute("SELECT COUNT(*) AS cnt FROM bookings WHERE booking_status = 'CONFIRMED';")
         stats["total_confirmed_bookings"] = cursor.fetchone()["cnt"]
 
         # 5. Today's confirmed bookings
@@ -46,22 +47,24 @@ def get_dashboard_stats(conn: Optional[sqlite3.Connection] = None) -> Dict[str, 
             """
             SELECT COUNT(*) AS cnt 
             FROM bookings 
-            WHERE date(booking_date) = ? AND status = 'CONFIRMED';
+            WHERE SUBSTR(booking_date, 1, 10) = %s AND booking_status = 'CONFIRMED';
             """,
             (today_str,)
         )
-        stats["today_confirmed_bookings"] = cursor.fetchone()["cnt"]
+        row = cursor.fetchone()
+        stats["today_confirmed_bookings"] = row["cnt"] if row else 0
 
         # 6. Total simulated revenue from confirmed bookings
-        cursor.execute("SELECT COALESCE(SUM(amount), 0.0) AS rev FROM bookings WHERE status = 'CONFIRMED';")
+        cursor.execute("SELECT COALESCE(SUM(total_amount), 0.0) AS rev FROM bookings WHERE booking_status = 'CONFIRMED';")
         stats["total_revenue"] = cursor.fetchone()["rev"]
 
         # 7. Recent 5 bookings
         cursor.execute(
             """
             SELECT 
-                b.booking_reference, p.full_name, r.source, r.destination,
-                s.travel_date, b.seat_number, b.amount, b.status
+                b.booking_reference, p.passenger_name AS full_name, r.source, r.destination,
+                SUBSTR(s.departure_datetime, 1, 10) AS travel_date, b.seat_number,
+                b.total_amount AS amount, b.booking_status AS status
             FROM bookings b
             INNER JOIN passengers p ON b.passenger_id = p.passenger_id
             INNER JOIN schedules s ON b.schedule_id = s.schedule_id
@@ -70,43 +73,39 @@ def get_dashboard_stats(conn: Optional[sqlite3.Connection] = None) -> Dict[str, 
             LIMIT 5;
             """
         )
-        stats["recent_bookings"] = [dict(row) for row in cursor.fetchall()]
+        stats["recent_bookings"] = cursor.fetchall()
 
         # 8. Occupancy statistics by schedule
         cursor.execute(
             """
-            SELECT 
-                s.schedule_id, bs.bus_number, bs.bus_name, bs.total_seats,
-                r.source, r.destination, s.travel_date, s.departure_time,
-                COUNT(b.booking_id) AS confirmed_seats,
-                ROUND((COUNT(b.booking_id) * 100.0) / bs.total_seats, 1) AS occupancy_rate
-            FROM schedules s
-            INNER JOIN buses bs ON s.bus_id = bs.bus_id
-            INNER JOIN routes r ON s.route_id = r.route_id
-            LEFT JOIN bookings b ON s.schedule_id = b.schedule_id AND b.status = 'CONFIRMED'
-            WHERE s.status <> 'CANCELLED'
-            GROUP BY s.schedule_id
-            ORDER BY occupancy_rate DESC
+            SELECT schedule_id, bus_name, source, destination,
+                   SUBSTR(departure_datetime, 1, 10) AS travel_date,
+                   SUBSTR(departure_datetime, 12, 5) AS departure_time,
+                   booked_seats, total_capacity AS total_seats, occupancy_percentage AS occupancy_rate
+            FROM vw_schedule_occupancy
+            ORDER BY occupancy_percentage DESC
             LIMIT 5;
             """
         )
-        stats["high_occupancy_schedules"] = [dict(row) for row in cursor.fetchall()]
+        stats["high_occupancy_schedules"] = cursor.fetchall()
 
-        # 9. Bookings trend for charts (Daily counts and revenue over the last 7 dates)
+        # 9. Bookings trend for charts
         cursor.execute(
             """
             SELECT 
-                date(b.booking_date) AS b_date,
+                SUBSTR(b.booking_date, 1, 10) AS b_date,
                 COUNT(b.booking_id) AS booking_count,
-                COALESCE(SUM(b.amount), 0.0) AS daily_revenue
+                COALESCE(SUM(b.total_amount), 0.0) AS daily_revenue
             FROM bookings b
-            WHERE b.status = 'CONFIRMED'
-            GROUP BY date(b.booking_date)
-            ORDER BY date(b.booking_date) ASC
-            LIMIT 10;
+            WHERE b.booking_status = 'CONFIRMED'
+            GROUP BY SUBSTR(b.booking_date, 1, 10)
+            ORDER BY b_date DESC
+            LIMIT 7;
             """
         )
-        stats["trend_data"] = [dict(row) for row in cursor.fetchall()]
+        trend_rows = cursor.fetchall()
+        trend_rows.reverse()
+        stats["booking_trends"] = trend_rows
 
         return stats
     finally:
@@ -114,12 +113,8 @@ def get_dashboard_stats(conn: Optional[sqlite3.Connection] = None) -> Dict[str, 
             conn.close()
 
 
-def report_all_confirmed_bookings(conn: Optional[sqlite3.Connection] = None) -> Tuple[List[str], List[List[Any]]]:
-    """Generates comprehensive report of all active confirmed bookings."""
-    headers = [
-        "Booking Ref", "Passenger Name", "Phone", "Bus Number", "Bus Name",
-        "Route", "Travel Date", "Time", "Seat", "Fare", "Payment Method", "Status"
-    ]
+def report_all_confirmed_bookings(conn: Optional[DatabaseConnection] = None) -> Tuple[List[str], List[List[Any]]]:
+    """Report 1: Confirmed bookings with full route and payment details."""
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -129,33 +124,37 @@ def report_all_confirmed_bookings(conn: Optional[sqlite3.Connection] = None) -> 
         cursor.execute(
             """
             SELECT 
-                b.booking_reference, p.full_name, p.phone, bs.bus_number, bs.bus_name,
-                r.source || ' -> ' || r.destination AS route_name,
-                s.travel_date, s.departure_time, b.seat_number, b.amount,
-                COALESCE(pm.payment_method, 'N/A') AS payment_method, b.status
+                b.booking_reference, p.passenger_name, p.age, p.phone,
+                bs.bus_name, bs.registration_number,
+                r.source, r.destination,
+                SUBSTR(s.departure_datetime, 1, 10) AS travel_date,
+                SUBSTR(s.departure_datetime, 12, 5) AS departure_time,
+                b.seat_number, b.total_amount, pm.payment_method, pm.transaction_reference
             FROM bookings b
-            INNER JOIN passengers p ON b.passenger_id = p.passenger_id
-            INNER JOIN schedules s ON b.schedule_id = s.schedule_id
-            INNER JOIN buses bs ON s.bus_id = bs.bus_id
-            INNER JOIN routes r ON s.route_id = r.route_id
+            JOIN passengers p ON b.passenger_id = p.passenger_id
+            JOIN schedules s ON b.schedule_id = s.schedule_id
+            JOIN buses bs ON s.bus_id = bs.bus_id
+            JOIN routes r ON s.route_id = r.route_id
             LEFT JOIN payments pm ON b.booking_id = pm.booking_id
-            WHERE b.status = 'CONFIRMED'
-            ORDER BY s.travel_date DESC, s.departure_time ASC;
+            WHERE b.booking_status = 'CONFIRMED'
+            ORDER BY b.booking_date DESC;
             """
         )
-        rows = [[row[h] for h in range(len(headers))] for row in cursor.fetchall()]
-        return headers, rows
+        rows = cursor.fetchall()
+        headers = [
+            "Reference", "Passenger Name", "Age", "Phone",
+            "Bus Name", "Bus Number", "Source", "Destination",
+            "Date", "Departure", "Seat #", "Amount (Rs)", "Payment Method", "Transaction ID"
+        ]
+        data = [[r[k] for k in r] for r in rows]
+        return headers, data
     finally:
         if close_after:
             conn.close()
 
 
-def report_cancelled_bookings(conn: Optional[sqlite3.Connection] = None) -> Tuple[List[str], List[List[Any]]]:
-    """Generates audit report of all cancelled bookings and refund statuses."""
-    headers = [
-        "Booking Ref", "Passenger Name", "Phone", "Bus Number",
-        "Route", "Travel Date", "Seat", "Amount", "Cancellation Date", "Refund Status"
-    ]
+def report_cancelled_bookings(conn: Optional[DatabaseConnection] = None) -> Tuple[List[str], List[List[Any]]]:
+    """Report 2: Cancelled bookings and refund audit."""
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -165,30 +164,32 @@ def report_cancelled_bookings(conn: Optional[sqlite3.Connection] = None) -> Tupl
         cursor.execute(
             """
             SELECT 
-                b.booking_reference, p.full_name, p.phone, bs.bus_number,
-                r.source || ' -> ' || r.destination AS route_name,
-                s.travel_date, b.seat_number, b.amount,
-                b.cancellation_date, COALESCE(pm.payment_status, 'REFUNDED') AS refund_status
+                b.booking_reference, p.passenger_name, r.source, r.destination,
+                b.seat_number, b.total_amount, b.cancelled_at, b.cancellation_reason,
+                ref.refund_amount, ref.refund_status
             FROM bookings b
-            INNER JOIN passengers p ON b.passenger_id = p.passenger_id
-            INNER JOIN schedules s ON b.schedule_id = s.schedule_id
-            INNER JOIN buses bs ON s.bus_id = bs.bus_id
-            INNER JOIN routes r ON s.route_id = r.route_id
-            LEFT JOIN payments pm ON b.booking_id = pm.booking_id
-            WHERE b.status = 'CANCELLED'
-            ORDER BY b.cancellation_date DESC;
+            JOIN passengers p ON b.passenger_id = p.passenger_id
+            JOIN schedules s ON b.schedule_id = s.schedule_id
+            JOIN routes r ON s.route_id = r.route_id
+            LEFT JOIN refunds ref ON b.booking_id = ref.booking_id
+            WHERE b.booking_status = 'CANCELLED'
+            ORDER BY b.cancelled_at DESC;
             """
         )
-        rows = [[row[h] for h in range(len(headers))] for row in cursor.fetchall()]
-        return headers, rows
+        rows = cursor.fetchall()
+        headers = [
+            "Reference", "Passenger Name", "Source", "Destination",
+            "Seat #", "Original Fare", "Cancelled At", "Reason", "Refund Amount", "Refund Status"
+        ]
+        data = [[r[k] for k in r] for r in rows]
+        return headers, data
     finally:
         if close_after:
             conn.close()
 
 
-def report_bookings_by_route(conn: Optional[sqlite3.Connection] = None) -> Tuple[List[str], List[List[Any]]]:
-    """Generates aggregated bookings and revenue by bus route."""
-    headers = ["Route ID", "Source", "Destination", "Distance (km)", "Total Bookings", "Total Revenue (Rs.)"]
+def report_bookings_by_route(conn: Optional[DatabaseConnection] = None) -> Tuple[List[str], List[List[Any]]]:
+    """Report 3: Aggregated route performance from vw_route_revenue."""
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -198,26 +199,61 @@ def report_bookings_by_route(conn: Optional[sqlite3.Connection] = None) -> Tuple
         cursor.execute(
             """
             SELECT 
-                r.route_id, r.source, r.destination, r.distance_km,
-                COUNT(b.booking_id) AS total_bookings,
-                COALESCE(SUM(CASE WHEN b.status = 'CONFIRMED' THEN b.amount ELSE 0 END), 0.0) AS total_revenue
-            FROM routes r
-            LEFT JOIN schedules s ON r.route_id = s.route_id
-            LEFT JOIN bookings b ON s.schedule_id = b.schedule_id
-            GROUP BY r.route_id, r.source, r.destination, r.distance_km
+                route_id, CONCAT(source, ' -> ', destination) AS route_pair,
+                total_trips_scheduled, confirmed_bookings, cancelled_bookings,
+                total_gross_revenue, total_refunded, net_revenue
+            FROM vw_route_revenue
+            ORDER BY net_revenue DESC;
+            """
+        )
+        rows = cursor.fetchall()
+        headers = [
+            "Route ID", "Route", "Total Scheduled Trips", "Confirmed Bookings",
+            "Cancellations", "Gross Revenue (Rs)", "Refunded (Rs)", "Net Revenue (Rs)"
+        ]
+        data = [[r[k] for k in r] for r in rows]
+        return headers, data
+    finally:
+        if close_after:
+            conn.close()
+
+
+def report_bookings_by_bus(conn: Optional[DatabaseConnection] = None) -> Tuple[List[str], List[List[Any]]]:
+    """Report 4: Fleet utilization and revenue per bus."""
+    close_after = False
+    if conn is None:
+        conn = get_connection()
+        close_after = True
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT 
+                b.bus_id, b.registration_number, b.bus_name, b.bus_type, b.capacity,
+                COUNT(DISTINCT s.schedule_id) AS trips_count,
+                COUNT(DISTINCT CASE WHEN bk.booking_status = 'CONFIRMED' THEN bk.booking_id END) AS confirmed_passengers,
+                COALESCE(SUM(CASE WHEN bk.booking_status = 'CONFIRMED' THEN bk.total_amount ELSE 0 END), 0.0) AS total_revenue
+            FROM buses b
+            LEFT JOIN schedules s ON b.bus_id = s.bus_id
+            LEFT JOIN bookings bk ON s.schedule_id = bk.schedule_id
+            GROUP BY b.bus_id, b.registration_number, b.bus_name, b.bus_type, b.capacity
             ORDER BY total_revenue DESC;
             """
         )
-        rows = [[row[h] for h in range(len(headers))] for row in cursor.fetchall()]
-        return headers, rows
+        rows = cursor.fetchall()
+        headers = [
+            "Bus ID", "Registration #", "Bus Name", "Bus Type", "Capacity",
+            "Trips Count", "Passengers Served", "Total Revenue (Rs)"
+        ]
+        data = [[r[k] for k in r] for r in rows]
+        return headers, data
     finally:
         if close_after:
             conn.close()
 
 
-def report_bookings_by_bus(conn: Optional[sqlite3.Connection] = None) -> Tuple[List[str], List[List[Any]]]:
-    """Generates aggregated booking counts and revenue by physical bus."""
-    headers = ["Bus ID", "Bus Number", "Bus Name", "Bus Type", "Capacity", "Confirmed Bookings", "Total Revenue (Rs.)"]
+def report_bus_occupancy(conn: Optional[DatabaseConnection] = None) -> Tuple[List[str], List[List[Any]]]:
+    """Report 5: Schedule occupancy analysis from vw_schedule_occupancy."""
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -227,29 +263,27 @@ def report_bookings_by_bus(conn: Optional[sqlite3.Connection] = None) -> Tuple[L
         cursor.execute(
             """
             SELECT 
-                bs.bus_id, bs.bus_number, bs.bus_name, bs.bus_type, bs.total_seats,
-                COUNT(CASE WHEN b.status = 'CONFIRMED' THEN b.booking_id END) AS confirmed_bookings,
-                COALESCE(SUM(CASE WHEN b.status = 'CONFIRMED' THEN b.amount ELSE 0 END), 0.0) AS total_revenue
-            FROM buses bs
-            LEFT JOIN schedules s ON bs.bus_id = s.bus_id
-            LEFT JOIN bookings b ON s.schedule_id = b.schedule_id
-            GROUP BY bs.bus_id, bs.bus_number, bs.bus_name, bs.bus_type, bs.total_seats
-            ORDER BY total_revenue DESC;
+                schedule_id, departure_datetime, schedule_status,
+                CONCAT(source, ' -> ', destination) AS route,
+                bus_name, total_capacity, booked_seats, available_seats, occupancy_percentage
+            FROM vw_schedule_occupancy
+            ORDER BY departure_datetime DESC;
             """
         )
-        rows = [[row[h] for h in range(len(headers))] for row in cursor.fetchall()]
-        return headers, rows
+        rows = cursor.fetchall()
+        headers = [
+            "Schedule ID", "Departure Datetime", "Trip Status", "Route",
+            "Bus Name", "Capacity", "Booked Seats", "Available Seats", "Occupancy (%)"
+        ]
+        data = [[r[k] for k in r] for r in rows]
+        return headers, data
     finally:
         if close_after:
             conn.close()
 
 
-def report_bus_occupancy(conn: Optional[sqlite3.Connection] = None) -> Tuple[List[str], List[List[Any]]]:
-    """Generates occupancy rate percentage for all active schedules."""
-    headers = [
-        "Schedule ID", "Date", "Departure", "Bus Number", "Route",
-        "Total Seats", "Booked Seats", "Available Seats", "Occupancy %"
-    ]
+def report_audit_logs(conn: Optional[DatabaseConnection] = None) -> Tuple[List[str], List[List[Any]]]:
+    """Report 6: Audit log trail."""
     close_after = False
     if conn is None:
         conn = get_connection()
@@ -258,24 +292,27 @@ def report_bus_occupancy(conn: Optional[sqlite3.Connection] = None) -> Tuple[Lis
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT 
-                s.schedule_id, s.travel_date, s.departure_time, bs.bus_number,
-                r.source || ' -> ' || r.destination AS route_name,
-                bs.total_seats,
-                COUNT(b.booking_id) AS booked_seats,
-                (bs.total_seats - COUNT(b.booking_id)) AS available_seats,
-                ROUND((COUNT(b.booking_id) * 100.0) / bs.total_seats, 2) AS occupancy_pct
-            FROM schedules s
-            INNER JOIN buses bs ON s.bus_id = bs.bus_id
-            INNER JOIN routes r ON s.route_id = r.route_id
-            LEFT JOIN bookings b ON s.schedule_id = b.schedule_id AND b.status = 'CONFIRMED'
-            WHERE s.status <> 'CANCELLED'
-            GROUP BY s.schedule_id
-            ORDER BY s.travel_date DESC, occupancy_pct DESC;
+            SELECT log_id, action_type, table_name, record_id, changed_by, old_values, new_values, created_at
+            FROM audit_logs
+            ORDER BY log_id DESC
+            LIMIT 100;
             """
         )
-        rows = [[row[h] for h in range(len(headers))] for row in cursor.fetchall()]
-        return headers, rows
+        rows = cursor.fetchall()
+        headers = [
+            "Log ID", "Action", "Table", "Record ID", "Changed By", "Old Values", "New Values", "Timestamp"
+        ]
+        data = [[r[k] for k in r] for r in rows]
+        return headers, data
     finally:
         if close_after:
             conn.close()
+
+
+def export_report_to_csv_string(rows: List[Dict[str, Any]], fieldnames: List[str]) -> str:
+    """Exports any table dataset to CSV formatted string."""
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
