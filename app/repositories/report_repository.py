@@ -114,6 +114,7 @@ def get_dashboard_stats(conn: Optional[DatabaseConnection] = None) -> Dict[str, 
         )
         trend_rows = cursor.fetchall()
         trend_rows.reverse()
+        stats["trend_data"] = trend_rows
         stats["booking_trends"] = trend_rows
 
         return stats

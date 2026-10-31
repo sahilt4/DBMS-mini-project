@@ -201,31 +201,39 @@ class DashboardPage(QWidget):
             self.occ_table.setItem(row_idx, 3, QTableWidgetItem(f"{rate}% ({confirmed}/{total})"))
 
         # Redraw Matplotlib Trend Chart
-        self._plot_trend_chart(stats.get("trend_data", []))
+        trend = stats.get("trend_data") or stats.get("booking_trends") or []
+        self._plot_trend_chart(trend)
 
     def _plot_trend_chart(self, trend_data):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
-        dates = [d["b_date"][-5:] for d in trend_data]  # MM-DD
-        revenues = [d["daily_revenue"] for d in trend_data]
-        counts = [d["booking_count"] for d in trend_data]
+        dates = [d.get("b_date", "")[-5:] if d.get("b_date") else "Today" for d in trend_data]
+        revenues = [float(d.get("daily_revenue", 0.0) or 0.0) for d in trend_data]
+        counts = [int(d.get("booking_count", 0) or 0) for d in trend_data]
 
         if not dates:
             ax.text(0.5, 0.5, "No confirmed bookings recorded yet", horizontalalignment='center', verticalalignment='center', transform=ax.transAxes, color='#94A3B8')
             self.canvas.draw()
             return
 
-        x = range(len(dates))
-        bars = ax.bar([i - 0.15 for i in x], revenues, width=0.3, label="Revenue (Rs.)", color="#2563EB", alpha=0.85)
+        x = list(range(len(dates)))
+        ax.bar([i - 0.15 for i in x], revenues, width=0.3, label="Revenue (Rs.)", color="#2563EB", alpha=0.85)
         
         ax2 = ax.twinx()
-        lines = ax2.plot(list(x), counts, color="#10B981", marker="o", linewidth=2.2, label="Bookings Count")
+        ax2.plot(x, counts, color="#10B981", marker="o", linewidth=2.2, label="Bookings Count")
 
-        ax.set_xticks(list(x))
+        ax.set_xticks(x)
         ax.set_xticklabels(dates, fontsize=9, color="#475569")
-        ax.set_ylabel("Revenue (Rs.)", color="#2563EB", fontsize=10)
-        ax2.set_ylabel("Bookings Count", color="#10B981", fontsize=10)
+        ax.set_xlim(-0.5, len(dates) - 0.5)
+
+        max_rev = max(revenues) if revenues else 0
+        max_cnt = max(counts) if counts else 0
+        ax.set_ylim(bottom=0, top=max(max_rev * 1.25, 1000.0))
+        ax2.set_ylim(bottom=0, top=max(max_cnt * 1.35, 5.0))
+
+        ax.set_ylabel("Revenue (Rs.)", color="#2563EB", fontsize=10, fontweight="bold")
+        ax2.set_ylabel("Bookings Count", color="#10B981", fontsize=10, fontweight="bold")
         ax.grid(axis='y', linestyle='--', alpha=0.3)
         ax.set_facecolor('#FAFAFA')
 
