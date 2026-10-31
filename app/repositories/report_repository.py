@@ -78,12 +78,21 @@ def get_dashboard_stats(conn: Optional[DatabaseConnection] = None) -> Dict[str, 
         # 8. Occupancy statistics by schedule
         cursor.execute(
             """
-            SELECT schedule_id, bus_name, source, destination,
-                   SUBSTR(departure_datetime, 1, 10) AS travel_date,
-                   SUBSTR(departure_datetime, 12, 5) AS departure_time,
-                   booked_seats, total_capacity AS total_seats, occupancy_percentage AS occupancy_rate
-            FROM vw_schedule_occupancy
-            ORDER BY occupancy_percentage DESC
+            SELECT s.schedule_id, b.bus_name,
+                   COALESCE(b.bus_number, b.registration_number, '') AS bus_number,
+                   r.source, r.destination,
+                   COALESCE(s.travel_date, SUBSTR(s.departure_datetime, 1, 10)) AS travel_date,
+                   COALESCE(s.departure_time, SUBSTR(s.departure_datetime, 12, 5)) AS departure_time,
+                   COUNT(CASE WHEN ss.seat_status = 'BOOKED' THEN 1 END) AS booked_seats,
+                   COUNT(CASE WHEN ss.seat_status = 'BOOKED' THEN 1 END) AS confirmed_seats,
+                   COALESCE(b.total_seats, b.capacity) AS total_seats,
+                   ROUND((COUNT(CASE WHEN ss.seat_status = 'BOOKED' THEN 1 END) * 100.0) / NULLIF(COALESCE(b.total_seats, b.capacity), 0), 2) AS occupancy_rate
+            FROM schedules s
+            JOIN routes r ON s.route_id = r.route_id
+            JOIN buses b ON s.bus_id = b.bus_id
+            LEFT JOIN schedule_seats ss ON s.schedule_id = ss.schedule_id
+            GROUP BY s.schedule_id, b.bus_name, b.bus_number, b.registration_number, r.source, r.destination, s.travel_date, s.departure_datetime, s.departure_time, b.total_seats, b.capacity
+            ORDER BY occupancy_rate DESC
             LIMIT 5;
             """
         )

@@ -201,3 +201,4 @@ A relation $R$ is in BCNF if and only if for **every non-trivial functional depe
 | **Deletion Anomaly** | Deleting the last passenger's booking from a trip deletes the bus, route, and stop information. | Deleting or cancelling a booking only updates `bookings` and `schedule_seats`; `schedules`, `buses`, and `routes` remain untouched. |
 | **Update Anomaly** | Changing the bus fare or route distance requires updating every historical booking row. | Fare is defined at the `schedules` level; route distance is defined in `routes`. Updating either modifies exactly one row. |
 | **Double-Booking Anomaly**| Multiple simultaneous bookings could claim the same seat on a schedule. | `schedule_seats` row-level locking + partial unique index `idx_bookings_active_seat` mathematically prevents duplicate active bookings. |
+

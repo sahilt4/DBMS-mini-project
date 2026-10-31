@@ -135,8 +135,11 @@ def find_route_by_id(route_id: int, conn: Optional[DatabaseConnection] = None) -
 
 
 def list_routes(
-    active_only: bool = True,
-    conn: Optional[DatabaseConnection] = None
+    active_only: Optional[bool] = None,
+    is_active: Optional[Any] = None,
+    search: Optional[str] = None,
+    conn: Optional[DatabaseConnection] = None,
+    **kwargs
 ) -> List[Dict[str, Any]]:
     close_after = False
     if conn is None:
@@ -144,27 +147,29 @@ def list_routes(
         close_after = True
     try:
         cursor = conn.cursor()
-        if active_only:
-            cursor.execute(
-                """
-                SELECT route_id, source, destination, distance, distance AS distance_km,
-                       estimated_duration, route_status,
-                       CASE WHEN route_status = 'ACTIVE' THEN 1 ELSE 0 END AS is_active
-                FROM routes
-                WHERE route_status = 'ACTIVE'
-                ORDER BY source, destination;
-                """
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT route_id, source, destination, distance, distance AS distance_km,
-                       estimated_duration, route_status,
-                       CASE WHEN route_status = 'ACTIVE' THEN 1 ELSE 0 END AS is_active
-                FROM routes
-                ORDER BY source, destination;
-                """
-            )
+        conditions = []
+        params = []
+        if search:
+            conditions.append("(LOWER(source) LIKE %s OR LOWER(destination) LIKE %s)")
+            params.extend([f"%{search.strip().lower()}%", f"%{search.strip().lower()}%"])
+        if is_active is not None and is_active != "All":
+            if is_active is True or is_active == 1 or is_active == "ACTIVE":
+                conditions.append("route_status = 'ACTIVE'")
+            elif is_active is False or is_active == 0 or is_active == "INACTIVE":
+                conditions.append("route_status <> 'ACTIVE'")
+        elif active_only is True:
+            conditions.append("route_status = 'ACTIVE'")
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        query = f"""
+            SELECT route_id, source, destination, distance, distance AS distance_km,
+                   estimated_duration, route_status,
+                   CASE WHEN route_status = 'ACTIVE' THEN 1 ELSE 0 END AS is_active
+            FROM routes
+            {where_clause}
+            ORDER BY source, destination;
+        """
+        cursor.execute(query, params)
         return cursor.fetchall()
     finally:
         if close_after:

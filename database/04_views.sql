@@ -165,6 +165,7 @@ SELECT
     s.schedule_status,
     r.source,
     r.destination,
+    b.registration_number,
     b.bus_name,
     b.bus_type,
     b.capacity AS total_capacity,
@@ -180,4 +181,5 @@ JOIN routes r ON s.route_id = r.route_id
 JOIN buses b ON s.bus_id = b.bus_id
 LEFT JOIN schedule_seats ss ON s.schedule_id = ss.schedule_id
 GROUP BY s.schedule_id, s.departure_datetime, s.arrival_datetime, s.schedule_status, 
-         r.source, r.destination, b.bus_name, b.bus_type, b.capacity;
+         r.source, r.destination, b.registration_number, b.bus_name, b.bus_type, b.capacity;
+

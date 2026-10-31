@@ -50,3 +50,4 @@ def save_qr_file(payload: str, destination_path: Path) -> Path:
     img = generate_qr_image(payload)
     img.save(str(destination_path), format="PNG")
     return destination_path
+

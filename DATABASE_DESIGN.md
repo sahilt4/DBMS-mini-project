@@ -440,3 +440,4 @@ Generates authoritative seat inventory in `schedule_seats` (1 through `bus.capac
 
 ### 2. `trg_audit_booking_insert` & `trg_audit_booking_update`
 Captures all booking creations, status transitions, and cancellations into `audit_logs`.
+

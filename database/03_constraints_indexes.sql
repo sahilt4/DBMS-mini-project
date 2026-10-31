@@ -46,3 +46,4 @@ CREATE INDEX idx_audit_logs_table_record
 -- Conductor check-in timeline queries
 CREATE INDEX idx_checkins_conductor_time 
     ON ticket_checkins (conductor_id, checkin_time);
+

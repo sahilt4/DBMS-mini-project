@@ -11,3 +11,4 @@ CREATE DATABASE brms_db
     COLLATE utf8mb4_unicode_ci;
 
 USE brms_db;
+

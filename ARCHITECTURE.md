@@ -195,3 +195,4 @@ The application enforces a strict role-based permission matrix across all applic
 3. **Conductor Onboard Scanner (`app/ui/pages/conductor_page.py`)**:
    - Uses OpenCV (`cv2.VideoCapture` + `cv2.QRCodeDetector`) running in a responsive PySide6 thread timer (30 FPS).
    - Detects QR bounding boxes, extracts the ticket reference, calls `verification_service.verify_ticket()`, checks against `ticket_checkins` for duplicates, records check-in timestamp, and provides real-time audiovisual feedback.
+

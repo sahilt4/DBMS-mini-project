@@ -50,3 +50,4 @@ def test_pdf_ticket_generation(temp_db):
                 pdf_path.unlink()
             except Exception:
                 pass
+

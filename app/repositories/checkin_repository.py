@@ -138,3 +138,4 @@ def list_conductor_checkins(conductor_id: int, conn: Optional[DatabaseConnection
     finally:
         if close_after:
             conn.close()
+

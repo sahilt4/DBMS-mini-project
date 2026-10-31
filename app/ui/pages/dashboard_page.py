@@ -177,19 +177,28 @@ class DashboardPage(QWidget):
         recent = stats.get("recent_bookings", [])
         self.recent_table.setRowCount(len(recent))
         for row_idx, r in enumerate(recent):
-            self.recent_table.setItem(row_idx, 0, QTableWidgetItem(r["booking_reference"]))
-            self.recent_table.setItem(row_idx, 1, QTableWidgetItem(r["full_name"]))
-            self.recent_table.setItem(row_idx, 2, QTableWidgetItem(f"{r['source']} -> {r['destination']}"))
-            self.recent_table.setItem(row_idx, 3, QTableWidgetItem(f"Rs. {r['amount']:.2f}"))
+            self.recent_table.setItem(row_idx, 0, QTableWidgetItem(str(r.get("booking_reference", ""))))
+            self.recent_table.setItem(row_idx, 1, QTableWidgetItem(str(r.get("full_name", r.get("passenger_name", "")))))
+            self.recent_table.setItem(row_idx, 2, QTableWidgetItem(f"{r.get('source', '')} -> {r.get('destination', '')}"))
+            amt = float(r.get("amount", r.get("total_amount", 0.0)))
+            self.recent_table.setItem(row_idx, 3, QTableWidgetItem(f"Rs. {amt:.2f}"))
 
         # Update Occupancy Table
         occ = stats.get("high_occupancy_schedules", [])
         self.occ_table.setRowCount(len(occ))
         for row_idx, o in enumerate(occ):
-            self.occ_table.setItem(row_idx, 0, QTableWidgetItem(f"{o['bus_number']} ({o['bus_name']})"))
-            self.occ_table.setItem(row_idx, 1, QTableWidgetItem(f"{o['source']} -> {o['destination']}"))
-            self.occ_table.setItem(row_idx, 2, QTableWidgetItem(f"{o['travel_date']} {o['departure_time']}"))
-            self.occ_table.setItem(row_idx, 3, QTableWidgetItem(f"{o['occupancy_rate']}% ({o['confirmed_seats']}/{o['total_seats']})"))
+            b_num = o.get("bus_number") or o.get("registration_number") or ""
+            b_name = o.get("bus_name") or ""
+            bus_label = f"{b_num} ({b_name})" if b_num else b_name
+            self.occ_table.setItem(row_idx, 0, QTableWidgetItem(bus_label))
+            self.occ_table.setItem(row_idx, 1, QTableWidgetItem(f"{o.get('source', '')} -> {o.get('destination', '')}"))
+            t_date = o.get('travel_date', '')
+            d_time = o.get('departure_time', '')
+            self.occ_table.setItem(row_idx, 2, QTableWidgetItem(f"{t_date} {d_time}".strip()))
+            rate = o.get("occupancy_rate", o.get("occupancy_percentage", 0))
+            confirmed = o.get("confirmed_seats", o.get("booked_seats", 0))
+            total = o.get("total_seats", o.get("total_capacity", 0))
+            self.occ_table.setItem(row_idx, 3, QTableWidgetItem(f"{rate}% ({confirmed}/{total})"))
 
         # Redraw Matplotlib Trend Chart
         self._plot_trend_chart(stats.get("trend_data", []))

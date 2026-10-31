@@ -297,7 +297,7 @@ GROUP BY r.route_id, r.source, r.destination;
 DROP VIEW IF EXISTS vw_schedule_occupancy;
 CREATE VIEW vw_schedule_occupancy AS
 SELECT s.schedule_id, s.departure_datetime, s.travel_date, s.departure_time, s.status AS schedule_status,
-       r.source, r.destination, b.bus_name, b.bus_type, b.total_seats AS total_capacity,
+       r.source, r.destination, b.bus_id, b.bus_number, b.registration_number, b.bus_name, b.bus_type, b.total_seats AS total_capacity,
        COUNT(CASE WHEN ss.seat_status = 'BOOKED' THEN 1 END) AS booked_seats,
        COUNT(CASE WHEN ss.seat_status = 'AVAILABLE' THEN 1 END) AS available_seats,
        COUNT(CASE WHEN ss.seat_status = 'BLOCKED' THEN 1 END) AS blocked_seats,
@@ -306,4 +306,4 @@ FROM schedules s
 JOIN routes r ON s.route_id = r.route_id
 JOIN buses b ON s.bus_id = b.bus_id
 LEFT JOIN schedule_seats ss ON s.schedule_id = ss.schedule_id
-GROUP BY s.schedule_id, s.departure_datetime, s.travel_date, s.departure_time, s.status, r.source, r.destination, b.bus_name, b.bus_type, b.total_seats;
+GROUP BY s.schedule_id, s.departure_datetime, s.travel_date, s.departure_time, s.status, r.source, r.destination, b.bus_id, b.bus_number, b.registration_number, b.bus_name, b.bus_type, b.total_seats;

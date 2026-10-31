@@ -243,3 +243,4 @@ CREATE TABLE audit_logs (
     new_values JSON NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
+

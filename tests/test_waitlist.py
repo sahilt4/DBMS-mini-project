@@ -28,3 +28,4 @@ def test_waitlist_queue_position_and_retrieval(temp_db):
     wl_list = waitlist_service.get_schedule_waitlist(schedule_id)
     assert len(wl_list) >= 2
     assert wl_list[0]["queue_position"] <= wl_list[1]["queue_position"]
+

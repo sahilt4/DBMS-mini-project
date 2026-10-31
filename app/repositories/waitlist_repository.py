@@ -121,3 +121,4 @@ def get_passenger_waitlists(user_id: int, conn: Optional[DatabaseConnection] = N
     finally:
         if close_after:
             conn.close()
+

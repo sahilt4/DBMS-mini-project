@@ -122,9 +122,12 @@ def find_bus_by_id(bus_id: int, conn: Optional[DatabaseConnection] = None) -> Op
 
 
 def list_buses(
-    active_only: bool = True,
+    active_only: Optional[bool] = None,
+    is_active: Optional[Any] = None,
     bus_type: Optional[str] = None,
-    conn: Optional[DatabaseConnection] = None
+    search: Optional[str] = None,
+    conn: Optional[DatabaseConnection] = None,
+    **kwargs
 ) -> List[Dict[str, Any]]:
     close_after = False
     if conn is None:
@@ -134,11 +137,19 @@ def list_buses(
         cursor = conn.cursor()
         conditions = []
         params = []
-        if active_only:
-            conditions.append("operational_status = 'ACTIVE'")
-        if bus_type:
+        if search:
+            conditions.append("(LOWER(registration_number) LIKE %s OR LOWER(bus_name) LIKE %s)")
+            params.extend([f"%{search.strip().lower()}%", f"%{search.strip().lower()}%"])
+        if bus_type and bus_type != "All":
             conditions.append("bus_type = %s")
             params.append(bus_type)
+        if is_active is not None and is_active != "All":
+            if is_active is True or is_active == 1 or is_active == "ACTIVE":
+                conditions.append("operational_status = 'ACTIVE'")
+            elif is_active is False or is_active == 0 or is_active == "INACTIVE":
+                conditions.append("operational_status <> 'ACTIVE'")
+        elif active_only is True:
+            conditions.append("operational_status = 'ACTIVE'")
 
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         query = f"""

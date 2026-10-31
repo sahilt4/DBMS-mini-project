@@ -37,3 +37,4 @@ def test_cancelled_ticket_verification_rejection(temp_db):
     res = verification_service.verify_ticket(ref, conductor_id=cond["user_id"])
     assert res["success"] is False
     assert res["status"] == "CANCELLED"
+

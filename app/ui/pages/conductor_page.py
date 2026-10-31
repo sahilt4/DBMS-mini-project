@@ -288,3 +288,4 @@ class ConductorPage(QWidget):
         if self.camera_timer.isActive():
             self._toggle_camera_scanner()
         super().hideEvent(event)
+

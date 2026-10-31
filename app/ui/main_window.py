@@ -214,9 +214,10 @@ class MainWindow(QMainWindow):
             btn.clicked.connect(lambda checked=False, idx=page_idx: self._switch_page(idx))
 
         # Activate default page
-        if default_key in self.nav_buttons:
+        page_map = {k: w for k, l, w in pages}
+        if default_key in self.nav_buttons and default_key in page_map:
             self.nav_buttons[default_key].setChecked(True)
-            self._switch_page(self.stack.indexOf(dict(pages)[default_key]))
+            self._switch_page(self.stack.indexOf(page_map[default_key]))
 
     def _switch_page(self, index: int):
         self.stack.setCurrentIndex(index)

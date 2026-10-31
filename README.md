@@ -97,7 +97,7 @@ The system includes pre-seeded accounts for instant evaluation:
 | Role | Full Name | Username / Email | Password | Permissions & Notes |
 |---|---|---|---|---|
 | **ADMIN** | System Administrator | `admin` | `Admin@123` | Full system control, fleet, routes, schedules, reports |
-| **CONDUCTOR** | Rajesh Conductor | `conductor1` | `Conductor@123` | Trip manifests, live camera QR scanning, passenger boarding |
+| **CONDUCTOR** | Ramesh Shinde | `conductor` | `Conductor@123` | Trip manifests, live camera QR scanning, passenger boarding |
 | **PASSENGER** | Rahul Sharma | `rahul_sharma` | `Rahul@123` | Pre-seeded with confirmed reservations |
 | **PASSENGER** | Priya Patil | `priya_patil` | `Priya@123` | Pre-seeded with confirmed reservations |
 | **PASSENGER** | Amit Deshmukh | `amit_d` | `Amit@123` | Pre-seeded with cancelled reservation |
@@ -187,7 +187,7 @@ pytest -v tests/test_conductor_checkin.py tests/test_digital_ticket.py
    - Review the passenger details, choose a payment method, and confirm the booking.
    - Inspect the **Digital E-Ticket** modal: note the live QR code and click **Download PDF Boarding Pass** to generate the official ReportLab ticket.
 3. **Conductor Verification & Live QR Scan**:
-   - Log out and log in as conductor `conductor1` / `Conductor@123`.
+   - Log out and log in as conductor `conductor` / `Conductor@123`.
    - Navigate to the **Conductor Verification** portal.
    - Select the journey schedule from the dropdown to inspect the real-time passenger manifest.
    - Paste the booking reference (or scan via webcam) and click **Verify & Check-In Ticket**.

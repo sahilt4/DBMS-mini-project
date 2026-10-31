@@ -122,3 +122,4 @@ INSERT INTO waitlist (waitlist_id, passenger_id, schedule_id, preferred_seat_typ
 (1, 3, 1, 'WINDOW', 1, 'WAITING');
 
 SET FOREIGN_KEY_CHECKS = 1;
+

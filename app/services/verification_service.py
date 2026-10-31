@@ -36,3 +36,4 @@ def verify_ticket(
 def get_conductor_history(conductor_id: int) -> list:
     """Returns past check-ins by this conductor."""
     return checkin_repository.list_conductor_checkins(conductor_id)
+

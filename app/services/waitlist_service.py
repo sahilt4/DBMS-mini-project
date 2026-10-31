@@ -28,3 +28,4 @@ def get_schedule_waitlist(schedule_id: int) -> List[Dict[str, Any]]:
 
 def get_user_waitlist(user_id: int) -> List[Dict[str, Any]]:
     return waitlist_repository.get_passenger_waitlists(user_id)
+

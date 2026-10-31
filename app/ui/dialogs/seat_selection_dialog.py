@@ -75,8 +75,8 @@ class SeatSelectionDialog(QDialog):
         leg_avail.setStyleSheet("color: #15803D; font-weight: 600; font-size: 12px;")
         leg_sel = QLabel("🔵 Selected")
         leg_sel.setStyleSheet("color: #1D4ED8; font-weight: 600; font-size: 12px;")
-        leg_occ = QLabel("⚪ Occupied (Booked)")
-        leg_occ.setStyleSheet("color: #94A3B8; font-weight: 600; font-size: 12px;")
+        leg_occ = QLabel("🔴 Occupied (Booked)")
+        leg_occ.setStyleSheet("color: #DC2626; font-weight: 700; font-size: 12px;")
 
         legend_layout.addWidget(leg_avail)
         legend_layout.addWidget(leg_sel)
@@ -168,8 +168,9 @@ class SeatSelectionDialog(QDialog):
                     btn.setText(f"{seat_num}\n[OCC]")
                     btn.setEnabled(False)
                     btn.setStyleSheet(
-                        "background-color: #F1F5F9; color: #94A3B8; border: 1px dashed #CBD5E1; "
-                        "border-radius: 6px; font-size: 10px; font-weight: 700;"
+                        "QPushButton, QPushButton:disabled { "
+                        "background-color: #EF4444; color: #FFFFFF; border: 1.5px solid #B91C1C; "
+                        "border-radius: 6px; font-size: 10px; font-weight: 700; }"
                     )
                 else:
                     if self.selected_seat == seat_num:
