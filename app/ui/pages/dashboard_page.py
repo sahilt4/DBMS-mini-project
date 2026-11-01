@@ -7,9 +7,11 @@ Implements the multi-quadrant EasyBus layout:
 - Bottom-Left: All Booking List Table with pill status badges
 - Bottom-Right: Activity / Departures Timeline Widget
 """
+import datetime
 from typing import Any, Dict, List
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -225,21 +227,34 @@ class DashboardPage(QWidget):
         act_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #111827;")
         act_head.addWidget(act_title)
         act_head.addStretch()
-        date_pill = QLabel("Today's Schedule")
-        date_pill.setStyleSheet("color: #64748B; font-weight: 600; font-size: 11px;")
-        act_head.addWidget(date_pill)
+        self.date_pill = QLabel("Today's Schedule")
+        self.date_pill.setStyleSheet("color: #64748B; font-weight: 600; font-size: 11px;")
+        act_head.addWidget(self.date_pill)
         act_layout.addLayout(act_head)
 
         # Weekly calendar day strip (Mon, Tue, Wed, Thu, Fri, Sat, Sun)
         week_strip = QHBoxLayout()
         week_strip.setSpacing(6)
-        days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        for idx, d in enumerate(days):
+        self.days_list = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_button_group = QButtonGroup(self)
+        self.day_button_group.setExclusive(True)
+        self.day_buttons = {}
+
+        # Default to today's weekday
+        cur_day_idx = datetime.datetime.now().weekday()
+        self.selected_day = self.days_list[cur_day_idx]
+        self.date_pill.setText(f"{self.selected_day}'s Schedule")
+
+        for d in self.days_list:
             btn = QPushButton(d)
             btn.setProperty("class", "pillBtn")
             btn.setCheckable(True)
-            if idx == 0:
+            btn.setCursor(Qt.PointingHandCursor)
+            if d == self.selected_day:
                 btn.setChecked(True)
+            btn.clicked.connect(lambda checked=False, day=d: self._on_day_filter_changed(day))
+            self.day_button_group.addButton(btn)
+            self.day_buttons[d] = btn
             week_strip.addWidget(btn)
         act_layout.addLayout(week_strip)
 
@@ -367,40 +382,97 @@ class DashboardPage(QWidget):
                 status_item.setForeground(Qt.darkRed)
             self.bookings_table.setItem(row, 4, status_item)
 
-        # Populate Activity / Timeline Widget with upcoming schedules
+        # Populate Activity / Timeline Widget with upcoming schedules for the selected day
+        self._populate_activity_timeline()
+
+    def _on_day_filter_changed(self, day: str):
+        """Called when a user clicks on Mon, Tue, Wed, Thu, Fri, Sat, Sun."""
+        self.selected_day = day
+        self.date_pill.setText(f"{day}'s Schedule")
+        self._populate_activity_timeline()
+
+    def _populate_activity_timeline(self):
+        """Filters schedules by the selected weekday and renders timeline cards."""
         while self.timeline_container.count():
             item = self.timeline_container.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
         schedules = schedule_repository.list_all_schedules()
-        upcoming = schedules[:3] if schedules else []
+        filtered = []
+        for s in schedules:
+            dt_str = str(s.get("departure_datetime", ""))
+            if dt_str:
+                try:
+                    dt = datetime.datetime.fromisoformat(dt_str)
+                    if self.days_list[dt.weekday()] == self.selected_day:
+                        filtered.append(s)
+                except Exception:
+                    pass
 
-        for idx, s in enumerate(upcoming):
+        # Sort filtered schedules chronologically by departure time
+        filtered.sort(key=lambda x: str(x.get("departure_time", "")))
+
+        if not filtered:
+            empty_card = QFrame()
+            empty_card.setStyleSheet(
+                "background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 12px; padding: 18px;"
+            )
+            e_layout = QVBoxLayout(empty_card)
+            e_layout.setAlignment(Qt.AlignCenter)
+            e_layout.setSpacing(6)
+
+            ico = QLabel("🚌")
+            ico.setAlignment(Qt.AlignCenter)
+            ico.setStyleSheet("font-size: 24px; background: transparent;")
+            e_layout.addWidget(ico)
+
+            msg = QLabel(f"No scheduled trips for {self.selected_day}")
+            msg.setAlignment(Qt.AlignCenter)
+            msg.setStyleSheet("color: #475569; font-weight: 700; font-size: 12px; background: transparent;")
+            e_layout.addWidget(msg)
+
+            sub = QLabel("Select another day or add a new schedule.")
+            sub.setAlignment(Qt.AlignCenter)
+            sub.setStyleSheet("color: #94A3B8; font-size: 11px; background: transparent;")
+            e_layout.addWidget(sub)
+
+            self.timeline_container.addWidget(empty_card)
+            return
+
+        for idx, s in enumerate(filtered[:4]):
             card = QFrame()
             if idx == 0:
-                card.setStyleSheet("background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 12px; padding: 10px 14px;")
-                tag_str = "NEXT DEPARTURE"
+                card.setStyleSheet("background: #FEF3C7; border: 1.5px solid #FCD34D; border-radius: 12px; padding: 10px 14px;")
+                tag_str = "⚡ NEXT DEPARTURE"
                 tag_color = "#92400E"
             else:
                 card.setStyleSheet("background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 12px; padding: 10px 14px;")
-                tag_str = "LATER TODAY"
+                tag_str = "🕒 SCHEDULED TRIP"
                 tag_color = "#1E40AF"
 
             c_layout = QVBoxLayout(card)
             c_layout.setContentsMargins(10, 8, 10, 8)
             c_layout.setSpacing(4)
 
+            top_row = QHBoxLayout()
             tag = QLabel(tag_str)
-            tag.setStyleSheet(f"font-size: 9px; font-weight: 800; color: {tag_color}; letter-spacing: 0.5px;")
-            c_layout.addWidget(tag)
+            tag.setStyleSheet(f"font-size: 10px; font-weight: 800; color: {tag_color}; letter-spacing: 0.5px; background: transparent;")
+            top_row.addWidget(tag)
+            top_row.addStretch()
+
+            seats_left = s.get("available_seats", 0)
+            seat_pill = QLabel(f"💺 {seats_left} seats")
+            seat_pill.setStyleSheet("color: #475569; font-size: 10px; font-weight: 600; background: transparent;")
+            top_row.addWidget(seat_pill)
+            c_layout.addLayout(top_row)
 
             r_title = QLabel(f"{s['bus_name']} ({s['source']} ➔ {s['destination']})")
-            r_title.setStyleSheet("font-weight: 700; color: #1E293B; font-size: 12px;")
+            r_title.setStyleSheet("font-weight: 700; color: #1E293B; font-size: 12px; background: transparent;")
             c_layout.addWidget(r_title)
 
-            timing = QLabel(f"Departure: {s['departure_time']}  |  Fare: Rs. {s['fare']:.2f}")
-            timing.setStyleSheet("color: #475569; font-size: 11px;")
+            timing = QLabel(f"Departure: {s['departure_time']}  |  Fare: Rs. {float(s['fare']):.2f}")
+            timing.setStyleSheet("color: #475569; font-size: 11px; background: transparent;")
             c_layout.addWidget(timing)
 
             self.timeline_container.addWidget(card)
