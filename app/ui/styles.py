@@ -22,15 +22,15 @@ QMainWindow, QDialog {
 #sidebar {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2C0B30, stop:0.45 #220826, stop:1 #140317);
     border: none;
-    min-width: 245px;
-    max-width: 245px;
+    min-width: 255px;
+    max-width: 255px;
 }
 
 #sidebarTitle {
     color: #FFFFFF;
     font-size: 18px;
     font-weight: 800;
-    padding: 20px 18px 2px 18px;
+    padding: 16px 18px 2px 18px;
     letter-spacing: 0.5px;
 }
 
@@ -38,20 +38,21 @@ QMainWindow, QDialog {
     color: #D1B8D5;
     font-size: 11px;
     font-weight: 500;
-    padding: 0px 18px 16px 18px;
+    padding: 0px 18px 12px 18px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 #sidebar QPushButton {
     text-align: left;
-    padding: 12px 18px;
+    padding: 8px 14px;
     font-size: 13px;
     font-weight: 500;
     color: #D1B8D5;
     background-color: transparent;
     border: none;
-    border-radius: 12px;
-    margin: 2px 12px;
+    border-radius: 10px;
+    margin: 1px 8px;
+    min-height: 20px;
 }
 
 #sidebar QPushButton:hover {

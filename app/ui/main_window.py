@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -99,30 +100,44 @@ class MainWindow(QMainWindow):
         self.role_badge.setAlignment(Qt.AlignCenter)
         self.sidebar_layout.addWidget(self.role_badge)
 
-        self.sidebar_layout.addSpacing(10)
+        self.sidebar_layout.addSpacing(6)
 
-        # Nav Buttons Container
+        # Nav Buttons Container with smooth borderless ScrollArea to prevent vertical squishing
         self.nav_button_group = QButtonGroup(self)
         self.nav_button_group.setExclusive(True)
         self.nav_buttons = {}
 
-        self.nav_container = QVBoxLayout()
-        self.nav_container.setSpacing(4)
-        self.sidebar_layout.addLayout(self.nav_container)
+        self.nav_scroll = QScrollArea()
+        self.nav_scroll.setWidgetResizable(True)
+        self.nav_scroll.setFrameShape(QFrame.NoFrame)
+        self.nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.nav_scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; } "
+            "QScrollBar:vertical { width: 4px; background: transparent; } "
+            "QScrollBar::handle:vertical { background: rgba(255, 255, 255, 0.2); border-radius: 2px; min-height: 20px; } "
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+        )
 
-        self.sidebar_layout.addStretch()
+        nav_widget = QWidget()
+        nav_widget.setStyleSheet("background: transparent;")
+        self.nav_container = QVBoxLayout(nav_widget)
+        self.nav_container.setContentsMargins(0, 0, 0, 0)
+        self.nav_container.setSpacing(3)
+        self.nav_scroll.setWidget(nav_widget)
 
-        # Promo Card (Yellow Coach Upgrade matching EasyBus mockup)
+        self.sidebar_layout.addWidget(self.nav_scroll, 1)
+
+        # Promo Card (Yellow Coach Upgrade matching EasyBus mockup - compact layout)
         self.promo_card = QFrame()
         self.promo_card.setObjectName("promoCard")
-        self.promo_card.setStyleSheet("background-color: #FFFFFF; border-radius: 14px; margin: 8px 14px; padding: 12px 10px;")
+        self.promo_card.setStyleSheet("background-color: #FFFFFF; border-radius: 12px; margin: 4px 10px; padding: 10px 8px;")
         promo_layout = QVBoxLayout(self.promo_card)
-        promo_layout.setContentsMargins(10, 10, 10, 10)
-        promo_layout.setSpacing(6)
+        promo_layout.setContentsMargins(8, 8, 8, 8)
+        promo_layout.setSpacing(4)
 
         promo_icon = QLabel("🚌 ⚡")
         promo_icon.setAlignment(Qt.AlignCenter)
-        promo_icon.setStyleSheet("font-size: 22px; background: transparent;")
+        promo_icon.setStyleSheet("font-size: 20px; background: transparent;")
         promo_layout.addWidget(promo_icon)
 
         promo_title = QLabel("Make Your Journey\nComfortable!")
@@ -136,7 +151,7 @@ class MainWindow(QMainWindow):
         promo_btn.setCursor(Qt.PointingHandCursor)
         promo_btn.setStyleSheet(
             "background-color: #2C0B30; color: #FFFFFF; font-weight: 700; font-size: 11px; "
-            "border-radius: 8px; padding: 7px 14px; border: none; text-align: center;"
+            "border-radius: 8px; padding: 6px 12px; border: none; text-align: center;"
         )
         promo_btn.clicked.connect(lambda: self._switch_to_search())
         promo_layout.addWidget(promo_btn)
@@ -147,6 +162,7 @@ class MainWindow(QMainWindow):
         self.logout_btn = QPushButton("🚪 Sign Out / Switch")
         self.logout_btn.setObjectName("logoutBtn")
         self.logout_btn.setCursor(Qt.PointingHandCursor)
+        self.logout_btn.setStyleSheet("color: #E2D4E5; font-size: 12px; font-weight: 600; padding: 8px 14px; margin: 2px 10px;")
         self.logout_btn.clicked.connect(self._handle_logout)
         self.sidebar_layout.addWidget(self.logout_btn)
 
@@ -241,10 +257,12 @@ class MainWindow(QMainWindow):
         self.greeting_label.setText(greet)
         self.profile_chip.setText(f"👤 {display_name} ({role.title()}) ▾")
 
-        # Clear existing nav buttons
-        for btn in self.nav_buttons.values():
-            self.nav_button_group.removeButton(btn)
-            btn.deleteLater()
+        # Clear existing nav buttons & layout items
+        while self.nav_container.count():
+            item = self.nav_container.takeAt(0)
+            if item.widget():
+                self.nav_button_group.removeButton(item.widget())
+                item.widget().deleteLater()
         self.nav_buttons.clear()
 
         # Clear existing stacked pages
@@ -306,8 +324,9 @@ class MainWindow(QMainWindow):
         # Register pages and sidebar navigation buttons
         for key, label, widget in pages:
             self.stack.addWidget(widget)
-            btn = QPushButton(label)
+            btn = QPushButton(f"  {label}")
             btn.setCheckable(True)
+            btn.setFixedHeight(38)
             btn.setCursor(Qt.PointingHandCursor)
             self.nav_button_group.addButton(btn)
             self.nav_container.addWidget(btn)
@@ -315,6 +334,8 @@ class MainWindow(QMainWindow):
 
             page_idx = self.stack.indexOf(widget)
             btn.clicked.connect(lambda checked=False, idx=page_idx: self._switch_page(idx))
+
+        self.nav_container.addStretch()
 
         # Activate default page
         page_map = {k: w for k, l, w in pages}
