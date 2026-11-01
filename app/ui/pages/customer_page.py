@@ -1,6 +1,6 @@
 """
 Customer Management Page for SmartBus BRMS (EasyBus Luxe Edition).
-Displays passenger profiles, tier classification (Pro / Free), loyalty coins,
+Displays passenger profiles, tier classification (Pro / Free),
 and customer profile drawer with real-time booking history.
 """
 from typing import Any, Dict, List, Optional
@@ -162,32 +162,10 @@ class CustomerPage(QWidget):
 
         self.drawer_layout.addLayout(avatar_box)
 
-        # 2. Coins Loyalty Box (Sleek dark card matching mockup)
-        self.coins_box = QFrame()
-        self.coins_box.setStyleSheet("background: #111827; border-radius: 10px;")
-        coins_layout = QHBoxLayout(self.coins_box)
-        coins_layout.setContentsMargins(12, 8, 12, 8)
-
-        coin_icon = QLabel("🪙")
-        coin_icon.setStyleSheet("font-size: 20px; background: transparent;")
-        coins_layout.addWidget(coin_icon)
-
-        c_sub = QVBoxLayout()
-        c_lbl = QLabel("EasyBus Loyalty Coins")
-        c_lbl.setStyleSheet("color: #9CA3AF; font-size: 10px; font-weight: 600; background: transparent;")
-        self.coins_val = QLabel("30,555")
-        self.coins_val.setStyleSheet("color: #FBBF24; font-size: 15px; font-weight: 800; background: transparent;")
-        c_sub.addWidget(c_lbl)
-        c_sub.addWidget(self.coins_val)
-        coins_layout.addLayout(c_sub)
-        coins_layout.addStretch()
-
-        self.drawer_layout.addWidget(self.coins_box)
-
-        # 3. Contact Info (Single compact row)
+        # 2. Contact Info (Single compact row)
         self.drawer_contact = QLabel("✉️ ---  |  📞 ---")
         self.drawer_contact.setAlignment(Qt.AlignCenter)
-        self.drawer_contact.setStyleSheet("color: #4B5563; font-size: 11px; font-weight: 500;")
+        self.drawer_contact.setStyleSheet("color: #4B5563; font-size: 12px; font-weight: 500; padding: 4px 0px;")
         self.drawer_layout.addWidget(self.drawer_contact)
 
         # Divider
@@ -272,11 +250,6 @@ class CustomerPage(QWidget):
         self.drawer_name.setText(c["full_name"])
         self.drawer_id.setText(f"CUST#{p_id:05d}")
         self.drawer_contact.setText(f"✉️  {c.get('email', 'N/A')}   |   📞  {c.get('phone', 'N/A')}")
-
-        # Compute dynamic loyalty points based on total spend
-        spent = float(c.get("total_spent", 0.0))
-        coins = int(spent * 15) + 1200
-        self.coins_val.setText(f"{coins:,}")
 
         # Fetch customer's recent booking history
         history = passenger_repository.get_customer_booking_history(p_id)
