@@ -169,57 +169,70 @@ class BusManagementPage(QWidget):
         return card, val
 
     def _build_detail_skeleton(self):
-        # Bus Header
-        bus_box = QVBoxLayout()
-        bus_box.setAlignment(Qt.AlignCenter)
-        bus_box.setSpacing(8)
+        # Bus Header (in a dedicated clean container with horizontal centering)
+        header_widget = QWidget()
+        h_layout = QVBoxLayout(header_widget)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+        h_layout.setSpacing(8)
 
         coach_icon = QLabel("🚌")
         coach_icon.setAlignment(Qt.AlignCenter)
-        coach_icon.setFixedSize(68, 68)
+        coach_icon.setFixedSize(60, 60)
         coach_icon.setStyleSheet(
-            "font-size: 34px; background: #EFF6FF; border: 2px solid #DBEAFE; border-radius: 34px;"
+            "font-size: 30px; background: #EFF6FF; border: 2px solid #DBEAFE; border-radius: 30px;"
         )
-        bus_box.addWidget(coach_icon, alignment=Qt.AlignCenter)
+        h_layout.addWidget(coach_icon, 0, Qt.AlignHCenter)
 
         self.detail_bus_title = QLabel("Select a Bus")
         self.detail_bus_title.setAlignment(Qt.AlignCenter)
         self.detail_bus_title.setWordWrap(True)
-        self.detail_bus_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #111827; margin-top: 4px;")
-        bus_box.addWidget(self.detail_bus_title)
+        self.detail_bus_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #111827; background: transparent; border: none;")
+        h_layout.addWidget(self.detail_bus_title, 0, Qt.AlignHCenter)
 
         self.detail_status_pill = QLabel("ACTIVE")
         self.detail_status_pill.setAlignment(Qt.AlignCenter)
-        self.detail_status_pill.setStyleSheet("background: #DCFCE7; color: #15803D; font-weight: 700; padding: 4px 12px; border-radius: 12px; font-size: 11px;")
-        bus_box.addWidget(self.detail_status_pill, alignment=Qt.AlignCenter)
-        self.dt_layout.addLayout(bus_box)
+        self.detail_status_pill.setStyleSheet(
+            "background: #DCFCE7; color: #15803D; font-weight: 700; padding: 4px 12px; border-radius: 12px; font-size: 11px; border: none;"
+        )
+        h_layout.addWidget(self.detail_status_pill, 0, Qt.AlignHCenter)
+        self.dt_layout.addWidget(header_widget)
 
-        # Specifications Card
+        # Specifications Card (with explicit selector so borders don't cascade to child labels)
         specs_box = QFrame()
-        specs_box.setStyleSheet("background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px;")
+        specs_box.setObjectName("busSpecsBox")
+        specs_box.setStyleSheet(
+            "QFrame#busSpecsBox { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px; } "
+            "QFrame#busSpecsBox QLabel { border: none; background: transparent; padding: 2px 0px; }"
+        )
         s_layout = QVBoxLayout(specs_box)
-        s_layout.setSpacing(6)
+        s_layout.setContentsMargins(10, 8, 10, 8)
+        s_layout.setSpacing(4)
 
         self.spec_reg = QLabel("Registration: ---")
-        self.spec_reg.setStyleSheet("font-weight: 600; color: #1E293B; font-size: 12px;")
+        self.spec_reg.setStyleSheet("font-weight: 600; color: #1E293B; font-size: 12px; border: none; background: transparent;")
         self.spec_type = QLabel("Class / Type: ---")
-        self.spec_type.setStyleSheet("color: #475569; font-size: 12px;")
+        self.spec_type.setStyleSheet("color: #475569; font-size: 12px; border: none; background: transparent;")
         self.spec_capacity = QLabel("Seating Capacity: ---")
-        self.spec_capacity.setStyleSheet("color: #475569; font-size: 12px;")
+        self.spec_capacity.setStyleSheet("color: #475569; font-size: 12px; border: none; background: transparent;")
         s_layout.addWidget(self.spec_reg)
         s_layout.addWidget(self.spec_type)
         s_layout.addWidget(self.spec_capacity)
         self.dt_layout.addWidget(specs_box)
 
-        # Live Route Waypoint Graphic
+        # Live Route Waypoint Graphic (with explicit selector so borders don't cascade)
         wp_box = QFrame()
-        wp_box.setStyleSheet("background: #EFF6FF; border: 1px dashed #93C5FD; border-radius: 12px; padding: 12px;")
+        wp_box.setObjectName("busWpBox")
+        wp_box.setStyleSheet(
+            "QFrame#busWpBox { background: #EFF6FF; border: 1px dashed #93C5FD; border-radius: 12px; padding: 10px; } "
+            "QFrame#busWpBox QLabel { border: none; background: transparent; padding: 2px 0px; }"
+        )
         wp_layout = QVBoxLayout(wp_box)
-        wp_layout.setSpacing(6)
+        wp_layout.setContentsMargins(10, 8, 10, 8)
+        wp_layout.setSpacing(4)
         wp_head = QLabel("Current Route Corridor")
-        wp_head.setStyleSheet("color: #1E40AF; font-size: 11px; font-weight: 700;")
+        wp_head.setStyleSheet("color: #1E40AF; font-size: 11px; font-weight: 700; border: none; background: transparent;")
         self.wp_route_label = QLabel("Pune Swargate  ──[ Express ]──>  Mumbai CST")
-        self.wp_route_label.setStyleSheet("color: #2563EB; font-weight: 800; font-size: 12px;")
+        self.wp_route_label.setStyleSheet("color: #2563EB; font-weight: 800; font-size: 12px; border: none; background: transparent;")
         wp_layout.addWidget(wp_head)
         wp_layout.addWidget(self.wp_route_label)
         self.dt_layout.addWidget(wp_box)
