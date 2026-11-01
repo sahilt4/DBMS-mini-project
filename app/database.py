@@ -85,7 +85,7 @@ _active_engine: Optional[str] = None
 
 
 def is_mysql_available() -> bool:
-    """Tests if MySQL 8.x server is reachable with the configured credentials."""
+    """Tests if MySQL 8.x server is reachable with the configured credentials and database."""
     if not HAS_MYSQL:
         return False
     try:
@@ -94,6 +94,7 @@ def is_mysql_available() -> bool:
             port=config.MYSQL_CONFIG["port"],
             user=config.MYSQL_CONFIG["user"],
             password=config.MYSQL_CONFIG["password"],
+            database=config.MYSQL_CONFIG["database"],
             connection_timeout=2
         )
         test_conn.close()

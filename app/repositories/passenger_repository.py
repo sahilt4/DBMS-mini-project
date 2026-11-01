@@ -131,3 +131,69 @@ def list_passengers(conn: Optional[DatabaseConnection] = None) -> List[Dict[str,
     finally:
         if close_after:
             conn.close()
+
+
+def list_customers_with_metrics(conn: Optional[DatabaseConnection] = None) -> List[Dict[str, Any]]:
+    """Fetches customer profiles with booking counts and spending for the Customer Management view."""
+    close_after = False
+    if conn is None:
+        conn = get_connection()
+        close_after = True
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT 
+                p.passenger_id, p.user_id,
+                COALESCE(p.passenger_name, p.full_name) AS full_name,
+                p.age, p.gender, p.phone, p.created_at,
+                COALESCE(u.email, 'guest@easybus.com') AS email,
+                COUNT(b.booking_id) AS total_bookings,
+                COALESCE(SUM(CASE WHEN b.booking_status = 'CONFIRMED' OR b.status = 'CONFIRMED' THEN COALESCE(b.total_amount, b.amount) ELSE 0 END), 0.0) AS total_spent
+            FROM passengers p
+            LEFT JOIN users u ON p.user_id = u.user_id
+            LEFT JOIN bookings b ON p.passenger_id = b.passenger_id
+            GROUP BY p.passenger_id, p.user_id, p.passenger_name, p.full_name, p.age, p.gender, p.phone, p.created_at, u.email
+            ORDER BY total_bookings DESC, p.passenger_id ASC;
+            """
+        )
+        return cursor.fetchall()
+    finally:
+        if close_after:
+            conn.close()
+
+
+def get_customer_booking_history(passenger_id: int, conn: Optional[DatabaseConnection] = None) -> List[Dict[str, Any]]:
+    """Retrieves the latest bookings for a specific customer."""
+    close_after = False
+    if conn is None:
+        conn = get_connection()
+        close_after = True
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT 
+                b.booking_id, b.booking_reference,
+                COALESCE(b.booking_status, b.status) AS status,
+                b.seat_number,
+                COALESCE(b.total_amount, b.amount) AS amount,
+                COALESCE(s.travel_date, SUBSTR(s.departure_datetime, 1, 10)) AS travel_date,
+                COALESCE(s.departure_time, SUBSTR(s.departure_datetime, 12, 5)) AS departure_time,
+                r.source, r.destination,
+                buses.bus_name
+            FROM bookings b
+            JOIN schedules s ON b.schedule_id = s.schedule_id
+            JOIN routes r ON s.route_id = r.route_id
+            JOIN buses ON s.bus_id = buses.bus_id
+            WHERE b.passenger_id = %s
+            ORDER BY b.booking_id DESC
+            LIMIT 6;
+            """,
+            (passenger_id,)
+        )
+        return cursor.fetchall()
+    finally:
+        if close_after:
+            conn.close()
+

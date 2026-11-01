@@ -145,11 +145,16 @@ class MyBookingsPage(QWidget):
             self.table.setItem(row_idx, 5, QTableWidgetItem(seat_str))
             self.table.setItem(row_idx, 6, QTableWidgetItem(amt_str))
 
-            status_item = QTableWidgetItem(b["status"])
-            if b["status"] == "CONFIRMED":
+            stat = str(b.get("status", "CONFIRMED")).upper()
+            if stat == "CONFIRMED":
+                status_item = QTableWidgetItem("🟢 Completed")
                 status_item.setForeground(Qt.darkGreen)
+            elif stat == "CANCELLED":
+                status_item = QTableWidgetItem("🔴 Cancelled")
+                status_item.setForeground(Qt.darkRed)
             else:
-                status_item.setForeground(Qt.red)
+                status_item = QTableWidgetItem("🟡 Pending")
+                status_item.setForeground(Qt.darkYellow)
             self.table.setItem(row_idx, 7, status_item)
 
     def _view_selected_ticket(self):

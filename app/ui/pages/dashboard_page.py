@@ -1,15 +1,17 @@
 """
-Admin Dashboard Page.
-Displays real-time database-backed KPI statistics cards, recent bookings table,
-occupancy summary, and an integrated Matplotlib analytics chart.
+Admin Dashboard Page for SmartBus BRMS (EasyBus Luxe Edition).
+Implements the multi-quadrant EasyBus layout:
+- Top 3 Vibrant Gradient KPI Stat Cards (Earnings, Today's Bookings, Departures)
+- Mid-Left: Live Bus & Route Waypoint Card (with Driver info and route details)
+- Mid-Right: Hero Travel Banner ("Secure your seat and enjoy the journey!")
+- Bottom-Left: All Booking List Table with pill status badges
+- Bottom-Right: Activity / Departures Timeline Widget
 """
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
+from typing import Any, Dict, List
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -21,225 +23,378 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.repositories import report_repository
+from app.repositories import report_repository, schedule_repository
 
 
 class DashboardPage(QWidget):
-    """Admin Dashboard Page with statistics and embedded Matplotlib visual."""
+    """Modern EasyBus-styled executive dashboard."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.stats: Dict[str, Any] = {}
         self._init_ui()
         self.refresh_data()
 
     def _init_ui(self):
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll = QScrollArea(self)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setStyleSheet("background: #F4F5F9;")
 
-        container = QWidget()
-        self.layout = QVBoxLayout(container)
-        self.layout.setContentsMargins(24, 20, 24, 20)
-        self.layout.setSpacing(18)
+        self.container = QWidget()
+        self.container.setStyleSheet("background: #F4F5F9;")
+        self.scroll.setWidget(self.container)
 
-        # Header bar with refresh button
-        header_row = QHBoxLayout()
-        v_title = QVBoxLayout()
-        title = QLabel("System Dashboard")
-        title.setObjectName("pageTitle")
-        subtitle = QLabel("Real-time DBMS metrics, fleet activity, and revenue statistics")
-        subtitle.setObjectName("pageDescription")
-        v_title.addWidget(title)
-        v_title.addWidget(subtitle)
-        header_row.addLayout(v_title)
-        header_row.addStretch()
+        self.main_layout = QVBoxLayout(self.container)
+        self.main_layout.setContentsMargins(24, 20, 24, 24)
+        self.main_layout.setSpacing(20)
 
-        self.refresh_btn = QPushButton("🔄 Refresh Dashboard")
-        self.refresh_btn.clicked.connect(self.refresh_data)
-        header_row.addWidget(self.refresh_btn)
-        self.layout.addLayout(header_row)
+        # ---------------------------------------------------------------------
+        # 1. Top Section: 3 Vibrant Gradient KPI Stat Cards (Matching Image 1)
+        # ---------------------------------------------------------------------
+        top_kpi_layout = QHBoxLayout()
+        top_kpi_layout.setSpacing(18)
 
-        # 6 KPI Stat Cards in a Grid
-        self.kpi_grid = QGridLayout()
-        self.kpi_grid.setSpacing(14)
-        
-        self.cards = {}
-        kpi_defs = [
-            ("active_buses", "Active Buses", "0", 0, 0),
-            ("active_routes", "Active Routes", "0", 0, 1),
-            ("today_schedules", "Today's Journeys", "0", 0, 2),
-            ("total_confirmed_bookings", "Total Bookings", "0", 1, 0),
-            ("today_confirmed_bookings", "Today's Bookings", "0", 1, 1),
-            ("total_revenue", "Total Revenue", "Rs. 0.00", 1, 2),
-        ]
-
-        for key, label, def_val, row, col in kpi_defs:
-            card = QWidget()
-            card.setObjectName("statCard")
-            c_layout = QVBoxLayout(card)
-            c_layout.setContentsMargins(16, 14, 16, 14)
-            c_layout.setSpacing(4)
-
-            lbl_title = QLabel(label)
-            lbl_title.setObjectName("statLabel")
-            val_lbl = QLabel(def_val)
-            val_lbl.setObjectName("statValue")
-
-            c_layout.addWidget(lbl_title)
-            c_layout.addWidget(val_lbl)
-            self.kpi_grid.addWidget(card, row, col)
-            self.cards[key] = val_lbl
-
-        self.layout.addLayout(self.kpi_grid)
-
-        # Matplotlib Chart Section (Revenue & Bookings Trend)
-        chart_card = QWidget()
-        chart_card.setObjectName("statCard")
-        chart_layout = QVBoxLayout(chart_card)
-        chart_layout.setContentsMargins(14, 10, 14, 10)
-        chart_layout.setSpacing(6)
-
-        chart_title = QLabel("Daily Confirmed Bookings & Simulated Revenue Trend")
-        chart_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #0F172A;")
-        chart_layout.addWidget(chart_title)
-
-        # Reduced chart height so bottom tables have generous visible room
-        self.figure = Figure(figsize=(8, 2.0), dpi=100)
-        self.figure.patch.set_facecolor('#FFFFFF')
-        self.canvas = FigureCanvas(self.figure)
-        self.canvas.setMinimumHeight(150)
-        self.canvas.setMaximumHeight(180)
-        chart_layout.addWidget(self.canvas)
-
-        self.layout.addWidget(chart_card)
-
-        # Tables Section: Recent Bookings & High Occupancy
-        tables_row = QHBoxLayout()
-        tables_row.setSpacing(16)
-
-        # Left Table: Recent Bookings
-        recent_box = QGroupBox("Recent Reservations")
-        recent_box.setStyleSheet(
-            "QGroupBox { font-size: 13px; font-weight: 700; color: #0F172A; border: 1px solid #CBD5E1; border-radius: 8px; margin-top: 16px; padding: 14px 10px 10px 10px; background-color: #FFFFFF; } "
-            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; background-color: #FFFFFF; color: #0F172A; }"
+        # Card 1: Purple Gradient (Total Earnings)
+        self.card_earnings, self.val_earnings = self._create_gradient_kpi(
+            "purpleStatCard", "💰", "Total Earnings", "Rs. 0.00", "+7% vs last month"
         )
-        v_rec = QVBoxLayout(recent_box)
-        v_rec.setContentsMargins(8, 12, 8, 8)
-        self.recent_table = QTableWidget()
-        self.recent_table.setColumnCount(4)
-        self.recent_table.setHorizontalHeaderLabels(["Reference", "Passenger", "Route", "Amount"])
-        self.recent_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.recent_table.verticalHeader().setVisible(False)
-        self.recent_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.recent_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.recent_table.setMinimumHeight(240)
-        v_rec.addWidget(self.recent_table)
-        tables_row.addWidget(recent_box, 1)
-
-        # Right Table: High Occupancy Schedules
-        occ_box = QGroupBox("Top Occupancy Journeys")
-        occ_box.setStyleSheet(
-            "QGroupBox { font-size: 13px; font-weight: 700; color: #0F172A; border: 1px solid #CBD5E1; border-radius: 8px; margin-top: 16px; padding: 14px 10px 10px 10px; background-color: #FFFFFF; } "
-            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; background-color: #FFFFFF; color: #0F172A; }"
+        # Card 2: Coral-Orange Gradient (Today's Bookings)
+        self.card_today_bks, self.val_today_bks = self._create_gradient_kpi(
+            "coralStatCard", "🎫", "Today's Bookings", "0", "Live reservations"
         )
-        v_occ = QVBoxLayout(occ_box)
-        v_occ.setContentsMargins(8, 12, 8, 8)
-        self.occ_table = QTableWidget()
-        self.occ_table.setColumnCount(4)
-        self.occ_table.setHorizontalHeaderLabels(["Bus", "Route", "Date & Time", "Occupancy"])
-        self.occ_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.occ_table.verticalHeader().setVisible(False)
-        self.occ_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.occ_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.occ_table.setMinimumHeight(240)
-        v_occ.addWidget(self.occ_table)
-        tables_row.addWidget(occ_box, 1)
+        # Card 3: Deep Navy Gradient (Successful Departures)
+        self.card_departures, self.val_departures = self._create_gradient_kpi(
+            "navyStatCard", "🚌", "Successful Departures", "0 / 0", "98% on-time rate"
+        )
 
-        self.layout.addLayout(tables_row)
+        top_kpi_layout.addWidget(self.card_earnings)
+        top_kpi_layout.addWidget(self.card_today_bks)
+        top_kpi_layout.addWidget(self.card_departures)
+        self.main_layout.addLayout(top_kpi_layout)
 
-        scroll.setWidget(container)
-        outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.addWidget(scroll)
+        # ---------------------------------------------------------------------
+        # 2. Middle Section: Bus List & Route Waypoint Card + Hero Promo Card
+        # ---------------------------------------------------------------------
+        mid_layout = QHBoxLayout()
+        mid_layout.setSpacing(18)
+
+        # Mid-Left (60% width): Live Active Bus & Waypoint card
+        bus_summary_card = QFrame()
+        bus_summary_card.setProperty("class", "Card")
+        bs_layout = QVBoxLayout(bus_summary_card)
+        bs_layout.setContentsMargins(20, 18, 20, 18)
+        bs_layout.setSpacing(12)
+
+        # Header row
+        bs_head = QHBoxLayout()
+        bs_title = QLabel("Bus List")
+        bs_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #111827;")
+        self.bs_subtitle = QLabel("Today Active Buses: 0")
+        self.bs_subtitle.setStyleSheet("font-size: 11px; color: #64748B; font-weight: 600;")
+        head_v = QVBoxLayout()
+        head_v.addWidget(bs_title)
+        head_v.addWidget(self.bs_subtitle)
+        bs_head.addLayout(head_v)
+        bs_head.addStretch()
+
+        active_pill = QLabel("🟢  Active Fleet")
+        active_pill.setProperty("class", "statusCompleted")
+        bs_head.addWidget(active_pill)
+
+        self.driver_pill = QLabel("👤 Ramesh Shinde (Driver) | 💺 Seats: Available")
+        self.driver_pill.setStyleSheet("background: #F3F4F6; color: #374151; font-weight: 600; padding: 4px 10px; border-radius: 12px; font-size: 11px;")
+        bs_head.addWidget(self.driver_pill)
+        bs_layout.addLayout(bs_head)
+
+        # Route Cards Row (Highlighting primary active routes)
+        routes_row = QHBoxLayout()
+        routes_row.setSpacing(12)
+
+        self.route_box1 = self._create_route_chip("Shivshahi Premium", "MH-12-RN-1001", "Pune", "Mumbai", "06:30 AM", is_active=True)
+        self.route_box2 = self._create_route_chip("Ashwamedh Multi-Axle", "MH-14-BT-2002", "Mumbai", "Nashik", "07:15 AM", is_active=False)
+        routes_row.addWidget(self.route_box1)
+        routes_row.addWidget(self.route_box2)
+        bs_layout.addLayout(routes_row)
+
+        # Visual Waypoint Route Graphic
+        waypoint_box = QFrame()
+        waypoint_box.setStyleSheet("background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 12px; padding: 10px 16px;")
+        wp_layout = QHBoxLayout(waypoint_box)
+        wp_layout.setContentsMargins(12, 8, 12, 8)
+        wp_icon = QLabel("📍")
+        wp_icon.setStyleSheet("font-size: 18px;")
+        wp_layout.addWidget(wp_icon)
+        self.wp_text = QLabel("Live Route: Pune Swargate Depot  ──[ Lonavala ]──>  Mumbai CST Terminal (On Schedule)")
+        self.wp_text.setStyleSheet("font-weight: 700; color: #2563EB; font-size: 12px;")
+        wp_layout.addWidget(self.wp_text)
+        wp_layout.addStretch()
+        bs_layout.addWidget(waypoint_box)
+
+        mid_layout.addWidget(bus_summary_card, 62)
+
+        # Mid-Right (38% width): Hero Travel Banner Card matching mockup
+        hero_card = QFrame()
+        hero_card.setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #1F2937, stop:1 #111827); "
+            "border-radius: 16px; padding: 22px;"
+        )
+        hero_layout = QVBoxLayout(hero_card)
+        hero_layout.setContentsMargins(20, 20, 20, 20)
+        hero_layout.setSpacing(12)
+
+        hero_badge = QLabel("🌟 PREMIUM EXPRESS FLEET")
+        hero_badge.setStyleSheet("color: #FBBF24; font-size: 10px; font-weight: 800; letter-spacing: 1px;")
+        hero_layout.addWidget(hero_badge)
+
+        hero_text = QLabel("Secure your seat and\nenjoy the journey!")
+        hero_text.setStyleSheet("color: #FFFFFF; font-size: 20px; font-weight: 800; line-height: 1.2;")
+        hero_layout.addWidget(hero_text)
+
+        hero_sub = QLabel("Comfortable sleeper berths, air-conditioned executive coaches, and contactless QR boarding.")
+        hero_sub.setWordWrap(True)
+        hero_sub.setStyleSheet("color: #9CA3AF; font-size: 11px;")
+        hero_layout.addWidget(hero_sub)
+
+        hero_layout.addStretch()
+
+        btn_row = QHBoxLayout()
+        book_now_btn = QPushButton("Book Tickets Now  ↗")
+        book_now_btn.setStyleSheet(
+            "background-color: #2563EB; color: #FFFFFF; font-weight: 700; font-size: 12px; "
+            "border-radius: 20px; padding: 9px 18px; border: none;"
+        )
+        book_now_btn.setCursor(Qt.PointingHandCursor)
+        book_now_btn.clicked.connect(self._go_to_booking)
+        btn_row.addWidget(book_now_btn)
+        btn_row.addStretch()
+        hero_layout.addLayout(btn_row)
+
+        mid_layout.addWidget(hero_card, 38)
+        self.main_layout.addLayout(mid_layout)
+
+        # ---------------------------------------------------------------------
+        # 3. Bottom Section: All Booking List Table + Activity / Timeline Widget
+        # ---------------------------------------------------------------------
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setSpacing(18)
+
+        # Bottom-Left (62% width): All Booking List Table
+        bookings_card = QFrame()
+        bookings_card.setProperty("class", "Card")
+        bks_layout = QVBoxLayout(bookings_card)
+        bks_layout.setContentsMargins(18, 18, 18, 18)
+        bks_layout.setSpacing(12)
+
+        bk_head = QHBoxLayout()
+        bk_title = QLabel("All Booking List")
+        bk_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #111827;")
+        bk_head.addWidget(bk_title)
+        bk_head.addStretch()
+
+        add_bkg_btn = QPushButton("+ New Booking")
+        add_bkg_btn.setProperty("class", "primaryButton")
+        add_bkg_btn.setCursor(Qt.PointingHandCursor)
+        add_bkg_btn.clicked.connect(self._go_to_booking)
+        bk_head.addWidget(add_bkg_btn)
+        bks_layout.addLayout(bk_head)
+
+        self.bookings_table = QTableWidget()
+        self.bookings_table.setColumnCount(5)
+        self.bookings_table.setHorizontalHeaderLabels(["Passenger", "Route", "Date / Time", "Seat", "Payment"])
+        self.bookings_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.bookings_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.bookings_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.bookings_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.bookings_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.bookings_table.verticalHeader().setVisible(False)
+        self.bookings_table.setSelectionBehavior(QTableWidget.SelectRows)
+        bks_layout.addWidget(self.bookings_table)
+
+        bottom_layout.addWidget(bookings_card, 62)
+
+        # Bottom-Right (38% width): Activity / Departures Timeline Widget
+        activity_card = QFrame()
+        activity_card.setProperty("class", "Card")
+        act_layout = QVBoxLayout(activity_card)
+        act_layout.setContentsMargins(18, 18, 18, 18)
+        act_layout.setSpacing(12)
+
+        act_head = QHBoxLayout()
+        act_title = QLabel("Activity & Trips")
+        act_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #111827;")
+        act_head.addWidget(act_title)
+        act_head.addStretch()
+        date_pill = QLabel("Today's Schedule")
+        date_pill.setStyleSheet("color: #64748B; font-weight: 600; font-size: 11px;")
+        act_head.addWidget(date_pill)
+        act_layout.addLayout(act_head)
+
+        # Weekly calendar day strip (Mon, Tue, Wed, Thu, Fri, Sat, Sun)
+        week_strip = QHBoxLayout()
+        week_strip.setSpacing(6)
+        days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        for idx, d in enumerate(days):
+            btn = QPushButton(d)
+            btn.setProperty("class", "pillBtn")
+            btn.setCheckable(True)
+            if idx == 0:
+                btn.setChecked(True)
+            week_strip.addWidget(btn)
+        act_layout.addLayout(week_strip)
+
+        # Trip timeline cards container
+        self.timeline_container = QVBoxLayout()
+        self.timeline_container.setSpacing(8)
+        act_layout.addLayout(self.timeline_container)
+        act_layout.addStretch()
+
+        bottom_layout.addWidget(activity_card, 38)
+        self.main_layout.addLayout(bottom_layout)
+
+        # Main scroll setup
+        scroll_layout = QVBoxLayout(self)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.addWidget(self.scroll)
+
+    def _create_gradient_kpi(self, obj_name: str, icon_str: str, label: str, value: str, badge: str):
+        card = QFrame()
+        card.setObjectName(obj_name)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(10)
+
+        top_row = QHBoxLayout()
+        lbl = QLabel(label, card)
+        lbl.setProperty("class", "gradientStatLabel")
+        ico = QLabel(icon_str, card)
+        ico.setStyleSheet("font-size: 20px;")
+        top_row.addWidget(lbl)
+        top_row.addStretch()
+        top_row.addWidget(ico)
+        layout.addLayout(top_row)
+
+        val = QLabel(value, card)
+        val.setProperty("class", "gradientStatValue")
+        layout.addWidget(val)
+
+        bot_row = QHBoxLayout()
+        bdg = QLabel(badge, card)
+        bdg.setProperty("class", "gradientBadge")
+        bot_row.addWidget(bdg)
+        bot_row.addStretch()
+        layout.addLayout(bot_row)
+
+        return card, val
+
+    def _create_route_chip(self, name: str, reg_no: str, src: str, dst: str, dep_time: str, is_active: bool) -> QWidget:
+        chip = QFrame()
+        if is_active:
+            chip.setStyleSheet(
+                "background: #EFF6FF; border: 1.5px solid #3B82F6; border-radius: 12px; padding: 12px;"
+            )
+        else:
+            chip.setStyleSheet(
+                "background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px;"
+            )
+        layout = QVBoxLayout(chip)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(4)
+
+        t_row = QHBoxLayout()
+        b_name = QLabel(name)
+        b_name.setStyleSheet("font-weight: 700; color: #0F172A; font-size: 13px;")
+        t_row.addWidget(b_name)
+        t_row.addStretch()
+        t_route = QLabel(f"{src[:3].upper()} ➔ {dst[:3].upper()}")
+        t_route.setStyleSheet("color: #2563EB; font-weight: 700; font-size: 11px;")
+        t_row.addWidget(t_route)
+        layout.addLayout(t_row)
+
+        b_sub = QLabel(f"{reg_no}  •  Departure: {dep_time}")
+        b_sub.setStyleSheet("color: #64748B; font-size: 11px;")
+        layout.addWidget(b_sub)
+        return chip
 
     def refresh_data(self):
-        """Re-executes SQL aggregations and redraws dashboard metrics and charts."""
+        """Fetches live metrics and populates the EasyBus dashboard."""
         stats = report_repository.get_dashboard_stats()
+        self.stats = stats
 
-        self.cards["active_buses"].setText(str(stats["active_buses"]))
-        self.cards["active_routes"].setText(str(stats["active_routes"]))
-        self.cards["today_schedules"].setText(str(stats["today_schedules"]))
-        self.cards["total_confirmed_bookings"].setText(str(stats["total_confirmed_bookings"]))
-        self.cards["today_confirmed_bookings"].setText(str(stats["today_confirmed_bookings"]))
-        self.cards["total_revenue"].setText(f"Rs. {float(stats['total_revenue']):,.2f}")
+        # Update Top Gradient Stat Cards
+        tot_rev = float(stats.get("total_revenue", 0.0))
+        self.val_earnings.setText(f"Rs. {tot_rev:,.2f}")
 
-        # Update Recent Bookings Table
+        today_cnt = stats.get("today_confirmed_bookings", 0)
+        self.val_today_bks.setText(f"{today_cnt:,} Bookings")
+
+        today_sched = stats.get("today_schedules", 0)
+        active_buses = stats.get("active_buses", 0)
+        self.val_departures.setText(f"{today_sched} Journeys")
+        self.bs_subtitle.setText(f"Today Active Fleet: {active_buses} Buses across Maharashtra")
+
+        # Populate Bookings Table
         recent = stats.get("recent_bookings", [])
-        self.recent_table.setRowCount(len(recent))
-        for row_idx, r in enumerate(recent):
-            self.recent_table.setItem(row_idx, 0, QTableWidgetItem(str(r.get("booking_reference", ""))))
-            self.recent_table.setItem(row_idx, 1, QTableWidgetItem(str(r.get("full_name", r.get("passenger_name", "")))))
-            self.recent_table.setItem(row_idx, 2, QTableWidgetItem(f"{r.get('source', '')} -> {r.get('destination', '')}"))
-            amt = float(r.get("amount", r.get("total_amount", 0.0)))
-            self.recent_table.setItem(row_idx, 3, QTableWidgetItem(f"Rs. {amt:.2f}"))
+        self.bookings_table.setRowCount(len(recent))
+        for row, r in enumerate(recent):
+            p_name = r.get("full_name") or r.get("passenger_name") or "Passenger"
+            ref = r.get("booking_reference", "")
+            self.bookings_table.setItem(row, 0, QTableWidgetItem(f"{p_name}\n({ref})"))
+            self.bookings_table.setItem(row, 1, QTableWidgetItem(f"{r.get('source')} ➔ {r.get('destination')}"))
+            
+            t_date = r.get("travel_date", "")
+            self.bookings_table.setItem(row, 2, QTableWidgetItem(t_date))
 
-        # Update Occupancy Table
-        occ = stats.get("high_occupancy_schedules", [])
-        self.occ_table.setRowCount(len(occ))
-        for row_idx, o in enumerate(occ):
-            b_num = o.get("bus_number") or o.get("registration_number") or ""
-            b_name = o.get("bus_name") or ""
-            bus_label = f"{b_num} ({b_name})" if b_num else b_name
-            self.occ_table.setItem(row_idx, 0, QTableWidgetItem(bus_label))
-            self.occ_table.setItem(row_idx, 1, QTableWidgetItem(f"{o.get('source', '')} -> {o.get('destination', '')}"))
-            t_date = o.get('travel_date', '')
-            d_time = o.get('departure_time', '')
-            self.occ_table.setItem(row_idx, 2, QTableWidgetItem(f"{t_date} {d_time}".strip()))
-            rate = o.get("occupancy_rate", o.get("occupancy_percentage", 0))
-            confirmed = o.get("confirmed_seats", o.get("booked_seats", 0))
-            total = o.get("total_seats", o.get("total_capacity", 0))
-            self.occ_table.setItem(row_idx, 3, QTableWidgetItem(f"{rate}% ({confirmed}/{total})"))
+            seat_no = r.get("seat_number", "")
+            self.bookings_table.setItem(row, 3, QTableWidgetItem(f"Seat #{seat_no}"))
 
-        # Redraw Matplotlib Trend Chart
-        trend = stats.get("trend_data") or stats.get("booking_trends") or []
-        self._plot_trend_chart(trend)
+            status_str = str(r.get("status", "CONFIRMED")).upper()
+            status_item = QTableWidgetItem("Completed" if status_str == "CONFIRMED" else "Pending")
+            if status_str == "CONFIRMED":
+                status_item.setForeground(Qt.darkGreen)
+            else:
+                status_item.setForeground(Qt.darkRed)
+            self.bookings_table.setItem(row, 4, status_item)
 
-    def _plot_trend_chart(self, trend_data):
-        self.figure.clear()
-        ax = self.figure.add_subplot(111)
+        # Populate Activity / Timeline Widget with upcoming schedules
+        while self.timeline_container.count():
+            item = self.timeline_container.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
 
-        dates = [d.get("b_date", "")[-5:] if d.get("b_date") else "Today" for d in trend_data]
-        revenues = [float(d.get("daily_revenue", 0.0) or 0.0) for d in trend_data]
-        counts = [int(d.get("booking_count", 0) or 0) for d in trend_data]
+        schedules = schedule_repository.list_all_schedules()
+        upcoming = schedules[:3] if schedules else []
 
-        if not dates:
-            ax.text(0.5, 0.5, "No confirmed bookings recorded yet", horizontalalignment='center', verticalalignment='center', transform=ax.transAxes, color='#94A3B8')
-            self.canvas.draw()
-            return
+        for idx, s in enumerate(upcoming):
+            card = QFrame()
+            if idx == 0:
+                card.setStyleSheet("background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 12px; padding: 10px 14px;")
+                tag_str = "NEXT DEPARTURE"
+                tag_color = "#92400E"
+            else:
+                card.setStyleSheet("background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 12px; padding: 10px 14px;")
+                tag_str = "LATER TODAY"
+                tag_color = "#1E40AF"
 
-        x = list(range(len(dates)))
-        ax.bar([i - 0.15 for i in x], revenues, width=0.3, label="Revenue (Rs.)", color="#2563EB", alpha=0.85)
-        
-        ax2 = ax.twinx()
-        ax2.plot(x, counts, color="#10B981", marker="o", linewidth=2.2, label="Bookings Count")
+            c_layout = QVBoxLayout(card)
+            c_layout.setContentsMargins(10, 8, 10, 8)
+            c_layout.setSpacing(4)
 
-        ax.set_xticks(x)
-        ax.set_xticklabels(dates, fontsize=9, color="#475569")
-        ax.set_xlim(-0.5, len(dates) - 0.5)
+            tag = QLabel(tag_str)
+            tag.setStyleSheet(f"font-size: 9px; font-weight: 800; color: {tag_color}; letter-spacing: 0.5px;")
+            c_layout.addWidget(tag)
 
-        max_rev = max(revenues) if revenues else 0
-        max_cnt = max(counts) if counts else 0
-        ax.set_ylim(bottom=0, top=max(max_rev * 1.25, 1000.0))
-        ax2.set_ylim(bottom=0, top=max(max_cnt * 1.35, 5.0))
+            r_title = QLabel(f"{s['bus_name']} ({s['source']} ➔ {s['destination']})")
+            r_title.setStyleSheet("font-weight: 700; color: #1E293B; font-size: 12px;")
+            c_layout.addWidget(r_title)
 
-        ax.set_ylabel("Revenue (Rs.)", color="#2563EB", fontsize=10, fontweight="bold")
-        ax2.set_ylabel("Bookings Count", color="#10B981", fontsize=10, fontweight="bold")
-        ax.grid(axis='y', linestyle='--', alpha=0.3)
-        ax.set_facecolor('#FAFAFA')
+            timing = QLabel(f"Departure: {s['departure_time']}  |  Fare: Rs. {s['fare']:.2f}")
+            timing.setStyleSheet("color: #475569; font-size: 11px;")
+            c_layout.addWidget(timing)
 
-        # Combine legends
-        ax.legend(loc="upper left", frameon=False, fontsize=9)
-        ax2.legend(loc="upper right", frameon=False, fontsize=9)
+            self.timeline_container.addWidget(card)
 
-        self.figure.tight_layout()
-        self.canvas.draw()
+    def _go_to_booking(self):
+        parent = self.window()
+        if hasattr(parent, "_switch_to_search"):
+            parent._switch_to_search()

@@ -4,11 +4,14 @@ Coordinates sidebar navigation, RBAC (ADMIN, PASSENGER, CONDUCTOR) routing,
 and dynamic page transitions.
 """
 from typing import Any, Dict, Optional
+import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -24,6 +27,7 @@ from app.ui.dialogs.registration_dialog import RegistrationDialog
 from app.ui.pages.bus_management_page import BusManagementPage
 from app.ui.pages.bus_search_page import BusSearchPage
 from app.ui.pages.conductor_page import ConductorPage
+from app.ui.pages.customer_page import CustomerPage
 from app.ui.pages.dashboard_page import DashboardPage
 from app.ui.pages.my_bookings_page import MyBookingsPage
 from app.ui.pages.reports_page import ReportsPage
@@ -89,21 +93,82 @@ class MainWindow(QMainWindow):
 
         self.sidebar_layout.addStretch()
 
+        # Promo Card (Yellow Coach Upgrade matching EasyBus mockup)
+        self.promo_card = QFrame()
+        self.promo_card.setObjectName("promoCard")
+        promo_layout = QVBoxLayout(self.promo_card)
+        promo_layout.setContentsMargins(12, 12, 12, 12)
+        promo_layout.setSpacing(6)
+
+        promo_icon = QLabel("🚌 ⚡")
+        promo_icon.setAlignment(Qt.AlignCenter)
+        promo_icon.setStyleSheet("font-size: 22px;")
+        promo_layout.addWidget(promo_icon)
+
+        promo_title = QLabel("Make Your Journey\nComfortable!")
+        promo_title.setObjectName("promoTitle")
+        promo_title.setAlignment(Qt.AlignCenter)
+        promo_layout.addWidget(promo_title)
+
+        promo_btn = QPushButton("Upgrade Now")
+        promo_btn.setObjectName("promoBtn")
+        promo_btn.setCursor(Qt.PointingHandCursor)
+        promo_btn.clicked.connect(lambda: self._switch_to_search())
+        promo_layout.addWidget(promo_btn)
+
+        self.sidebar_layout.addWidget(self.promo_card)
+
         # Switch Account / Logout Button at bottom of sidebar
         self.logout_btn = QPushButton("🚪 Sign Out / Switch")
+        self.logout_btn.setObjectName("logoutBtn")
+        self.logout_btn.setCursor(Qt.PointingHandCursor)
         self.logout_btn.clicked.connect(self._handle_logout)
         self.sidebar_layout.addWidget(self.logout_btn)
 
         main_layout.addWidget(self.sidebar)
 
-        # 2. Right Main Content Area (QStackedWidget)
+        # 2. Right Main Content Area (Top Header + QStackedWidget)
         content_container = QWidget()
         c_layout = QVBoxLayout(content_container)
         c_layout.setContentsMargins(0, 0, 0, 0)
         c_layout.setSpacing(0)
 
+        # Top Header Bar (Matching EasyBus Mockups)
+        self.top_header = QWidget()
+        self.top_header.setObjectName("topHeader")
+        header_layout = QHBoxLayout(self.top_header)
+        header_layout.setContentsMargins(28, 14, 28, 14)
+        header_layout.setSpacing(16)
+
+        self.greeting_label = QLabel("Good Morning! 👋")
+        self.greeting_label.setObjectName("topGreeting")
+        header_layout.addWidget(self.greeting_label)
+
+        header_layout.addStretch()
+
+        # Rounded Search Pill
+        self.top_search_input = QLineEdit()
+        self.top_search_input.setObjectName("topSearchInput")
+        self.top_search_input.setPlaceholderText("🔍  Search buses, routes, schedules...")
+        self.top_search_input.returnPressed.connect(self._handle_global_search)
+        header_layout.addWidget(self.top_search_input)
+
+        # Next bus arrival pill
+        self.arrival_pill = QLabel("⏰ Next Bus Arrival: 09:30 am")
+        self.arrival_pill.setObjectName("topArrivalPill")
+        header_layout.addWidget(self.arrival_pill)
+
+        # User profile chip
+        self.profile_chip = QPushButton("👤 User Account ▾")
+        self.profile_chip.setObjectName("topProfileChip")
+        self.profile_chip.setCursor(Qt.PointingHandCursor)
+        self.profile_chip.clicked.connect(self._handle_logout)
+        header_layout.addWidget(self.profile_chip)
+
+        c_layout.addWidget(self.top_header)
+
         self.stack = QStackedWidget()
-        c_layout.addWidget(self.stack)
+        c_layout.addWidget(self.stack, 1)
 
         main_layout.addWidget(content_container, 1)
 
@@ -140,6 +205,17 @@ class MainWindow(QMainWindow):
         display_name = cur_user.get("full_name", cur_user.get("name", "User"))
         self.role_badge.setText(f"{role}: {display_name}")
 
+        # Update Top Header
+        hr = datetime.datetime.now().hour
+        if hr < 12:
+            greet = "Good Morning! ☀️"
+        elif hr < 17:
+            greet = "Good Afternoon! 🌤️"
+        else:
+            greet = "Good Evening! 🌙"
+        self.greeting_label.setText(greet)
+        self.profile_chip.setText(f"👤 {display_name} ({role.title()}) ▾")
+
         # Clear existing nav buttons
         for btn in self.nav_buttons.values():
             self.nav_button_group.removeButton(btn)
@@ -156,9 +232,10 @@ class MainWindow(QMainWindow):
         if role == ROLE_ADMIN:
             self.dashboard_page = DashboardPage(self)
             self.search_page = BusSearchPage(self)
-            self.bus_mgmt_page = BusManagementPage(self)
-            self.route_mgmt_page = RouteManagementPage(self)
             self.sched_mgmt_page = ScheduleManagementPage(self)
+            self.bus_mgmt_page = BusManagementPage(self)
+            self.customer_page = CustomerPage(self)
+            self.route_mgmt_page = RouteManagementPage(self)
             self.all_bookings_page = MyBookingsPage(self)
             self.conductor_page = ConductorPage(self)
             self.reports_page = ReportsPage(self)
@@ -171,9 +248,10 @@ class MainWindow(QMainWindow):
             pages = [
                 ("dashboard", "📊 Dashboard", self.dashboard_page),
                 ("search", "🔍 Search & Book", self.search_page),
-                ("buses", "🚌 Bus Fleet", self.bus_mgmt_page),
-                ("routes", "🛣 Routes", self.route_mgmt_page),
                 ("schedules", "📅 Schedules", self.sched_mgmt_page),
+                ("buses", "🚌 Bus Fleet", self.bus_mgmt_page),
+                ("customers", "👥 Customers", self.customer_page),
+                ("routes", "🛣 Routes", self.route_mgmt_page),
                 ("bookings", "🎫 All Bookings", self.all_bookings_page),
                 ("conductor", "📱 Conductor Scanner", self.conductor_page),
                 ("reports", "📈 Reports & Analytics", self.reports_page),
@@ -234,6 +312,16 @@ class MainWindow(QMainWindow):
             current_widget.refresh_routes()
         elif hasattr(current_widget, "refresh_schedules"):
             current_widget.refresh_schedules()
+
+    def _switch_to_search(self):
+        if "search" in self.nav_buttons:
+            self.nav_buttons["search"].click()
+
+    def _handle_global_search(self):
+        text = self.top_search_input.text().strip()
+        if not text:
+            return
+        self._switch_to_search()
 
     def _handle_logout(self):
         auth_service.logout()
