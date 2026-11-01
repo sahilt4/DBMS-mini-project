@@ -39,10 +39,10 @@ class DashboardPage(QWidget):
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
-        self.scroll.setStyleSheet("background: #F4F5F9;")
+        self.scroll.setObjectName("dashboardScroll")
 
         self.container = QWidget()
-        self.container.setStyleSheet("background: #F4F5F9;")
+        self.container.setObjectName("dashboardContainer")
         self.scroll.setWidget(self.container)
 
         self.main_layout = QVBoxLayout(self.container)
@@ -260,27 +260,38 @@ class DashboardPage(QWidget):
     def _create_gradient_kpi(self, obj_name: str, icon_str: str, label: str, value: str, badge: str):
         card = QFrame()
         card.setObjectName(obj_name)
+
+        # Explicit gradients to ensure vibrant color rendition across platforms
+        gradients = {
+            "purpleStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #7C3AED, stop:1 #2563EB);",
+            "coralStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #F43F5E, stop:1 #FB923C);",
+            "navyStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #1E1B4B, stop:1 #312E81);",
+            "violetStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #9333EA, stop:1 #C026D3);"
+        }
+        grad_css = gradients.get(obj_name, "background: #2563EB;")
+        card.setStyleSheet(f"QFrame#{obj_name} {{ {grad_css} border-radius: 16px; border: none; }}")
+
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(10)
 
         top_row = QHBoxLayout()
         lbl = QLabel(label, card)
-        lbl.setProperty("class", "gradientStatLabel")
+        lbl.setStyleSheet("color: rgba(255, 255, 255, 0.9); font-size: 12px; font-weight: 600; background: transparent;")
         ico = QLabel(icon_str, card)
-        ico.setStyleSheet("font-size: 20px;")
+        ico.setStyleSheet("font-size: 20px; background: transparent;")
         top_row.addWidget(lbl)
         top_row.addStretch()
         top_row.addWidget(ico)
         layout.addLayout(top_row)
 
         val = QLabel(value, card)
-        val.setProperty("class", "gradientStatValue")
+        val.setStyleSheet("color: #FFFFFF; font-size: 26px; font-weight: 800; background: transparent;")
         layout.addWidget(val)
 
         bot_row = QHBoxLayout()
         bdg = QLabel(badge, card)
-        bdg.setProperty("class", "gradientBadge")
+        bdg.setStyleSheet("background: rgba(255, 255, 255, 0.22); color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 10px; background-color: rgba(255, 255, 255, 0.22);")
         bot_row.addWidget(bdg)
         bot_row.addStretch()
         layout.addLayout(bot_row)

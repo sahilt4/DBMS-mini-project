@@ -90,17 +90,20 @@ QMainWindow, QDialog {
     text-align: center;
 }
 
-#promoBtn {
+#sidebar QPushButton#promoBtn, #promoBtn {
     background-color: #2C0B30;
     color: #FFFFFF;
     border-radius: 8px;
     font-weight: 700;
     font-size: 11px;
-    padding: 6px 12px;
+    padding: 7px 14px;
+    text-align: center;
     border: none;
+    margin: 4px 6px;
 }
-#promoBtn:hover {
+#sidebar QPushButton#promoBtn:hover, #promoBtn:hover {
     background-color: #4A154B;
+    color: #FFFFFF;
 }
 
 #logoutBtn {

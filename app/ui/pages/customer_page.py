@@ -106,21 +106,30 @@ class CustomerPage(QWidget):
     def _create_gradient_card(self, obj_name: str, label_text: str, value_text: str, badge_text: str):
         card = QFrame()
         card.setObjectName(obj_name)
+        gradients = {
+            "purpleStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #7C3AED, stop:1 #2563EB);",
+            "coralStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #F43F5E, stop:1 #FB923C);",
+            "navyStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #1E1B4B, stop:1 #312E81);",
+            "violetStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #9333EA, stop:1 #C026D3);"
+        }
+        grad_css = gradients.get(obj_name, "background: #2563EB;")
+        card.setStyleSheet(f"QFrame#{obj_name} {{ {grad_css} border-radius: 16px; border: none; }}")
+
         layout = QVBoxLayout(card)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(8)
 
         lbl = QLabel(label_text, card)
-        lbl.setProperty("class", "gradientStatLabel")
+        lbl.setStyleSheet("color: rgba(255, 255, 255, 0.9); font-size: 12px; font-weight: 600; background: transparent;")
         layout.addWidget(lbl)
 
         val = QLabel(value_text, card)
-        val.setProperty("class", "gradientStatValue")
+        val.setStyleSheet("color: #FFFFFF; font-size: 26px; font-weight: 800; background: transparent;")
         layout.addWidget(val)
 
         badge_row = QHBoxLayout()
         badge = QLabel(badge_text, card)
-        badge.setProperty("class", "gradientBadge")
+        badge.setStyleSheet("background: rgba(255, 255, 255, 0.22); color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 10px;")
         badge_row.addWidget(badge)
         badge_row.addStretch()
         layout.addLayout(badge_row)
@@ -128,21 +137,22 @@ class CustomerPage(QWidget):
         return card, val
 
     def _build_drawer_skeleton(self):
-        # Avatar + Crown Header
+        # 1. Avatar + Name Header (Compact, modern design)
         avatar_box = QVBoxLayout()
         avatar_box.setAlignment(Qt.AlignCenter)
-        avatar_box.setSpacing(6)
+        avatar_box.setSpacing(4)
 
         self.drawer_avatar = QLabel("👤")
         self.drawer_avatar.setAlignment(Qt.AlignCenter)
+        self.drawer_avatar.setFixedSize(56, 56)
         self.drawer_avatar.setStyleSheet(
-            "font-size: 38px; background: #F3F4F6; border-radius: 40px; min-width: 80px; max-width: 80px; min-height: 80px; max-height: 80px;"
+            "font-size: 28px; background: #F3F4F6; border: 2px solid #E5E7EB; border-radius: 28px;"
         )
         avatar_box.addWidget(self.drawer_avatar, alignment=Qt.AlignCenter)
 
         self.drawer_name = QLabel("Select a Customer")
         self.drawer_name.setAlignment(Qt.AlignCenter)
-        self.drawer_name.setStyleSheet("font-size: 18px; font-weight: 800; color: #111827;")
+        self.drawer_name.setStyleSheet("font-size: 16px; font-weight: 800; color: #111827;")
         avatar_box.addWidget(self.drawer_name)
 
         self.drawer_id = QLabel("CUST# ---")
@@ -152,21 +162,21 @@ class CustomerPage(QWidget):
 
         self.drawer_layout.addLayout(avatar_box)
 
-        # Coins Loyalty Box
+        # 2. Coins Loyalty Box (Sleek dark card matching mockup)
         self.coins_box = QFrame()
-        self.coins_box.setStyleSheet("background: #111827; border-radius: 12px; padding: 10px 14px;")
+        self.coins_box.setStyleSheet("background: #111827; border-radius: 10px;")
         coins_layout = QHBoxLayout(self.coins_box)
-        coins_layout.setContentsMargins(12, 10, 12, 10)
+        coins_layout.setContentsMargins(12, 8, 12, 8)
 
         coin_icon = QLabel("🪙")
-        coin_icon.setStyleSheet("font-size: 22px;")
+        coin_icon.setStyleSheet("font-size: 20px; background: transparent;")
         coins_layout.addWidget(coin_icon)
 
         c_sub = QVBoxLayout()
         c_lbl = QLabel("EasyBus Loyalty Coins")
-        c_lbl.setStyleSheet("color: #9CA3AF; font-size: 10px; font-weight: 600;")
+        c_lbl.setStyleSheet("color: #9CA3AF; font-size: 10px; font-weight: 600; background: transparent;")
         self.coins_val = QLabel("30,555")
-        self.coins_val.setStyleSheet("color: #FBBF24; font-size: 17px; font-weight: 800;")
+        self.coins_val.setStyleSheet("color: #FBBF24; font-size: 15px; font-weight: 800; background: transparent;")
         c_sub.addWidget(c_lbl)
         c_sub.addWidget(self.coins_val)
         coins_layout.addLayout(c_sub)
@@ -174,36 +184,37 @@ class CustomerPage(QWidget):
 
         self.drawer_layout.addWidget(self.coins_box)
 
-        # Contact Info
-        contact_layout = QVBoxLayout()
-        contact_layout.setSpacing(4)
-        self.drawer_email = QLabel("✉️  ---")
-        self.drawer_email.setStyleSheet("color: #4B5563; font-size: 12px;")
-        self.drawer_phone = QLabel("📞  ---")
-        self.drawer_phone.setStyleSheet("color: #4B5563; font-size: 12px;")
-        contact_layout.addWidget(self.drawer_email)
-        contact_layout.addWidget(self.drawer_phone)
-        self.drawer_layout.addLayout(contact_layout)
+        # 3. Contact Info (Single compact row)
+        self.drawer_contact = QLabel("✉️ ---  |  📞 ---")
+        self.drawer_contact.setAlignment(Qt.AlignCenter)
+        self.drawer_contact.setStyleSheet("color: #4B5563; font-size: 11px; font-weight: 500;")
+        self.drawer_layout.addWidget(self.drawer_contact)
 
         # Divider
         divider = QFrame()
         divider.setFrameShape(QFrame.HLine)
-        divider.setStyleSheet("color: #E5E7EB;")
+        divider.setStyleSheet("color: #E5E7EB; max-height: 1px;")
         self.drawer_layout.addWidget(divider)
 
-        # Booking History Header
+        # 4. Booking History Header
         self.history_title = QLabel("Booking History")
         self.history_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #111827;")
         self.drawer_layout.addWidget(self.history_title)
 
-        # History Scrollable List
+        # 5. History Scrollable List (Generous minimum height so cards are fully visible)
         self.history_scroll = QScrollArea()
         self.history_scroll.setWidgetResizable(True)
-        self.history_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self.history_scroll.setMinimumHeight(260)
+        self.history_scroll.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; } "
+            "QScrollBar:vertical { width: 6px; background: #F1F5F9; border-radius: 3px; } "
+            "QScrollBar::handle:vertical { background: #CBD5E1; border-radius: 3px; min-height: 20px; }"
+        )
 
         self.history_container = QWidget()
+        self.history_container.setStyleSheet("background: transparent;")
         self.history_layout = QVBoxLayout(self.history_container)
-        self.history_layout.setContentsMargins(0, 0, 0, 0)
+        self.history_layout.setContentsMargins(0, 0, 4, 0)
         self.history_layout.setSpacing(8)
         self.history_scroll.setWidget(self.history_container)
 
@@ -260,8 +271,7 @@ class CustomerPage(QWidget):
         p_id = c["passenger_id"]
         self.drawer_name.setText(c["full_name"])
         self.drawer_id.setText(f"CUST#{p_id:05d}")
-        self.drawer_email.setText(f"✉️  {c.get('email', 'N/A')}")
-        self.drawer_phone.setText(f"📞  {c.get('phone', 'N/A')}")
+        self.drawer_contact.setText(f"✉️  {c.get('email', 'N/A')}   |   📞  {c.get('phone', 'N/A')}")
 
         # Compute dynamic loyalty points based on total spend
         spent = float(c.get("total_spent", 0.0))
@@ -272,7 +282,7 @@ class CustomerPage(QWidget):
         history = passenger_repository.get_customer_booking_history(p_id)
         self.history_title.setText(f"Booking History ({len(history)})")
 
-        # Clear existing history cards
+        # Clear existing history cards and stretches
         while self.history_layout.count():
             item = self.history_layout.takeAt(0)
             if item.widget():
@@ -280,41 +290,42 @@ class CustomerPage(QWidget):
 
         if not history:
             no_hist = QLabel("No booking history found.")
-            no_hist.setStyleSheet("color: #94A3B8; font-style: italic;")
+            no_hist.setStyleSheet("color: #94A3B8; font-style: italic; padding: 12px;")
             self.history_layout.addWidget(no_hist)
+            self.history_layout.addStretch()
             return
 
         for bk in history:
             card = QFrame()
             card.setStyleSheet(
-                "background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 8px 12px;"
+                "background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px 14px;"
             )
             c_layout = QVBoxLayout(card)
-            c_layout.setContentsMargins(8, 8, 8, 8)
-            c_layout.setSpacing(4)
+            c_layout.setContentsMargins(10, 8, 10, 8)
+            c_layout.setSpacing(6)
 
             top_row = QHBoxLayout()
             route_lbl = QLabel(f"{bk['source']} ➔ {bk['destination']}")
-            route_lbl.setStyleSheet("font-weight: 700; color: #1E293B; font-size: 12px;")
+            route_lbl.setStyleSheet("font-weight: 700; color: #1E293B; font-size: 13px;")
             top_row.addWidget(route_lbl)
             top_row.addStretch()
 
             stat = str(bk["status"]).upper()
             stat_lbl = QLabel(stat)
             if stat == "CONFIRMED":
-                stat_lbl.setStyleSheet("background: #DCFCE7; color: #15803D; padding: 2px 8px; border-radius: 8px; font-weight: 700; font-size: 10px;")
+                stat_lbl.setStyleSheet("background: #DCFCE7; color: #15803D; padding: 3px 10px; border-radius: 10px; font-weight: 700; font-size: 10px;")
             elif stat == "CANCELLED":
-                stat_lbl.setStyleSheet("background: #FEE2E2; color: #B91C1C; padding: 2px 8px; border-radius: 8px; font-weight: 700; font-size: 10px;")
+                stat_lbl.setStyleSheet("background: #FEE2E2; color: #B91C1C; padding: 3px 10px; border-radius: 10px; font-weight: 700; font-size: 10px;")
             else:
-                stat_lbl.setStyleSheet("background: #FEF3C7; color: #B45309; padding: 2px 8px; border-radius: 8px; font-weight: 700; font-size: 10px;")
+                stat_lbl.setStyleSheet("background: #FEF3C7; color: #B45309; padding: 3px 10px; border-radius: 10px; font-weight: 700; font-size: 10px;")
             top_row.addWidget(stat_lbl)
             c_layout.addLayout(top_row)
 
             bot_row = QHBoxLayout()
-            fare_lbl = QLabel(f"Rs. {float(bk['amount']):.2f} (Seat #{bk['seat_number']})")
-            fare_lbl.setStyleSheet("color: #2563EB; font-weight: 600; font-size: 11px;")
+            fare_lbl = QLabel(f"₹ {float(bk['amount']):.2f} • Seat {bk['seat_number']}")
+            fare_lbl.setStyleSheet("color: #2563EB; font-weight: 700; font-size: 12px;")
             date_lbl = QLabel(f"{bk['travel_date']}")
-            date_lbl.setStyleSheet("color: #64748B; font-size: 11px;")
+            date_lbl.setStyleSheet("color: #64748B; font-size: 11px; font-weight: 500;")
             bot_row.addWidget(fare_lbl)
             bot_row.addStretch()
             bot_row.addWidget(date_lbl)

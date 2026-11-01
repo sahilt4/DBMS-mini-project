@@ -132,27 +132,36 @@ class BusManagementPage(QWidget):
     def _create_gradient_kpi(self, obj_name: str, icon_str: str, label: str, value: str, badge: str):
         card = QFrame()
         card.setObjectName(obj_name)
+        gradients = {
+            "purpleStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #7C3AED, stop:1 #2563EB);",
+            "coralStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #F43F5E, stop:1 #FB923C);",
+            "navyStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #1E1B4B, stop:1 #312E81);",
+            "violetStatCard": "background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #9333EA, stop:1 #C026D3);"
+        }
+        grad_css = gradients.get(obj_name, "background: #2563EB;")
+        card.setStyleSheet(f"QFrame#{obj_name} {{ {grad_css} border-radius: 16px; border: none; }}")
+
         layout = QVBoxLayout(card)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(8)
 
         top_row = QHBoxLayout()
         lbl = QLabel(label, card)
-        lbl.setProperty("class", "gradientStatLabel")
+        lbl.setStyleSheet("color: rgba(255, 255, 255, 0.9); font-size: 12px; font-weight: 600; background: transparent;")
         ico = QLabel(icon_str, card)
-        ico.setStyleSheet("font-size: 20px;")
+        ico.setStyleSheet("font-size: 20px; background: transparent;")
         top_row.addWidget(lbl)
         top_row.addStretch()
         top_row.addWidget(ico)
         layout.addLayout(top_row)
 
         val = QLabel(value, card)
-        val.setProperty("class", "gradientStatValue")
+        val.setStyleSheet("color: #FFFFFF; font-size: 26px; font-weight: 800; background: transparent;")
         layout.addWidget(val)
 
         bot_row = QHBoxLayout()
         bdg = QLabel(badge, card)
-        bdg.setProperty("class", "gradientBadge")
+        bdg.setStyleSheet("background: rgba(255, 255, 255, 0.22); color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 10px;")
         bot_row.addWidget(bdg)
         bot_row.addStretch()
         layout.addLayout(bot_row)
@@ -163,23 +172,25 @@ class BusManagementPage(QWidget):
         # Bus Header
         bus_box = QVBoxLayout()
         bus_box.setAlignment(Qt.AlignCenter)
-        bus_box.setSpacing(6)
+        bus_box.setSpacing(8)
 
         coach_icon = QLabel("🚌")
         coach_icon.setAlignment(Qt.AlignCenter)
+        coach_icon.setFixedSize(68, 68)
         coach_icon.setStyleSheet(
-            "font-size: 44px; background: #EFF6FF; border-radius: 40px; min-width: 80px; max-width: 80px; min-height: 80px; max-height: 80px;"
+            "font-size: 34px; background: #EFF6FF; border: 2px solid #DBEAFE; border-radius: 34px;"
         )
         bus_box.addWidget(coach_icon, alignment=Qt.AlignCenter)
 
         self.detail_bus_title = QLabel("Select a Bus")
         self.detail_bus_title.setAlignment(Qt.AlignCenter)
-        self.detail_bus_title.setStyleSheet("font-size: 18px; font-weight: 800; color: #111827;")
+        self.detail_bus_title.setWordWrap(True)
+        self.detail_bus_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #111827; margin-top: 4px;")
         bus_box.addWidget(self.detail_bus_title)
 
         self.detail_status_pill = QLabel("ACTIVE")
         self.detail_status_pill.setAlignment(Qt.AlignCenter)
-        self.detail_status_pill.setProperty("class", "statusCompleted")
+        self.detail_status_pill.setStyleSheet("background: #DCFCE7; color: #15803D; font-weight: 700; padding: 4px 12px; border-radius: 12px; font-size: 11px;")
         bus_box.addWidget(self.detail_status_pill, alignment=Qt.AlignCenter)
         self.dt_layout.addLayout(bus_box)
 

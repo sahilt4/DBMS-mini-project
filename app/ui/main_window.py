@@ -65,14 +65,33 @@ class MainWindow(QMainWindow):
         self.sidebar_layout.setContentsMargins(0, 0, 0, 16)
         self.sidebar_layout.setSpacing(4)
 
-        # Branding
-        app_title = QLabel("🚌 SmartBus BRMS")
-        app_title.setObjectName("sidebarTitle")
-        self.sidebar_layout.addWidget(app_title)
+        # Branding - EasyBus Luxe Brand Header
+        brand_container = QWidget()
+        brand_layout = QHBoxLayout(brand_container)
+        brand_layout.setContentsMargins(18, 18, 18, 10)
+        brand_layout.setSpacing(12)
 
-        app_sub = QLabel("Advanced DBMS Edition")
-        app_sub.setObjectName("sidebarSubtitle")
-        self.sidebar_layout.addWidget(app_sub)
+        logo_badge = QLabel("🚌")
+        logo_badge.setAlignment(Qt.AlignCenter)
+        logo_badge.setFixedSize(38, 38)
+        logo_badge.setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #7C3AED, stop:1 #2563EB); "
+            "color: #FFFFFF; font-size: 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25);"
+        )
+        brand_layout.addWidget(logo_badge)
+
+        brand_text_box = QVBoxLayout()
+        brand_text_box.setSpacing(1)
+        app_title = QLabel("SmartBus")
+        app_title.setStyleSheet("color: #FFFFFF; font-size: 18px; font-weight: 800; letter-spacing: 0.5px; background: transparent;")
+        app_sub = QLabel("EasyBus Luxe Edition")
+        app_sub.setStyleSheet("color: #D1B8D5; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: transparent;")
+        brand_text_box.addWidget(app_title)
+        brand_text_box.addWidget(app_sub)
+        brand_layout.addLayout(brand_text_box)
+        brand_layout.addStretch()
+
+        self.sidebar_layout.addWidget(brand_container)
 
         # User Role Badge
         self.role_badge = QLabel("Guest")
@@ -96,23 +115,29 @@ class MainWindow(QMainWindow):
         # Promo Card (Yellow Coach Upgrade matching EasyBus mockup)
         self.promo_card = QFrame()
         self.promo_card.setObjectName("promoCard")
+        self.promo_card.setStyleSheet("background-color: #FFFFFF; border-radius: 14px; margin: 8px 14px; padding: 12px 10px;")
         promo_layout = QVBoxLayout(self.promo_card)
-        promo_layout.setContentsMargins(12, 12, 12, 12)
+        promo_layout.setContentsMargins(10, 10, 10, 10)
         promo_layout.setSpacing(6)
 
         promo_icon = QLabel("🚌 ⚡")
         promo_icon.setAlignment(Qt.AlignCenter)
-        promo_icon.setStyleSheet("font-size: 22px;")
+        promo_icon.setStyleSheet("font-size: 22px; background: transparent;")
         promo_layout.addWidget(promo_icon)
 
         promo_title = QLabel("Make Your Journey\nComfortable!")
         promo_title.setObjectName("promoTitle")
         promo_title.setAlignment(Qt.AlignCenter)
+        promo_title.setStyleSheet("color: #111827; font-size: 11px; font-weight: 800; background: transparent;")
         promo_layout.addWidget(promo_title)
 
         promo_btn = QPushButton("Upgrade Now")
         promo_btn.setObjectName("promoBtn")
         promo_btn.setCursor(Qt.PointingHandCursor)
+        promo_btn.setStyleSheet(
+            "background-color: #2C0B30; color: #FFFFFF; font-weight: 700; font-size: 11px; "
+            "border-radius: 8px; padding: 7px 14px; border: none; text-align: center;"
+        )
         promo_btn.clicked.connect(lambda: self._switch_to_search())
         promo_layout.addWidget(promo_btn)
 
