@@ -76,36 +76,6 @@ QMainWindow, QDialog {
     margin: 8px 14px;
 }
 
-/* Sidebar Promo Upgrade Card (Yellow Coach) */
-#promoCard {
-    background-color: #FFFFFF;
-    border-radius: 14px;
-    margin: 10px 14px;
-    padding: 12px 10px;
-}
-
-#promoTitle {
-    color: #111827;
-    font-size: 11px;
-    font-weight: 800;
-    text-align: center;
-}
-
-#sidebar QPushButton#promoBtn, #promoBtn {
-    background-color: #2C0B30;
-    color: #FFFFFF;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 11px;
-    padding: 7px 14px;
-    text-align: center;
-    border: none;
-    margin: 4px 6px;
-}
-#sidebar QPushButton#promoBtn:hover, #promoBtn:hover {
-    background-color: #4A154B;
-    color: #FFFFFF;
-}
 
 #logoutBtn {
     text-align: left;

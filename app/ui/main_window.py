@@ -127,37 +127,6 @@ class MainWindow(QMainWindow):
 
         self.sidebar_layout.addWidget(self.nav_scroll, 1)
 
-        # Promo Card (Yellow Coach Upgrade matching EasyBus mockup - compact layout)
-        self.promo_card = QFrame()
-        self.promo_card.setObjectName("promoCard")
-        self.promo_card.setStyleSheet("background-color: #FFFFFF; border-radius: 12px; margin: 4px 10px; padding: 10px 8px;")
-        promo_layout = QVBoxLayout(self.promo_card)
-        promo_layout.setContentsMargins(8, 8, 8, 8)
-        promo_layout.setSpacing(4)
-
-        promo_icon = QLabel("🚌 ⚡")
-        promo_icon.setAlignment(Qt.AlignCenter)
-        promo_icon.setStyleSheet("font-size: 20px; background: transparent;")
-        promo_layout.addWidget(promo_icon)
-
-        promo_title = QLabel("Make Your Journey\nComfortable!")
-        promo_title.setObjectName("promoTitle")
-        promo_title.setAlignment(Qt.AlignCenter)
-        promo_title.setStyleSheet("color: #111827; font-size: 11px; font-weight: 800; background: transparent;")
-        promo_layout.addWidget(promo_title)
-
-        promo_btn = QPushButton("Upgrade Now")
-        promo_btn.setObjectName("promoBtn")
-        promo_btn.setCursor(Qt.PointingHandCursor)
-        promo_btn.setStyleSheet(
-            "background-color: #2C0B30; color: #FFFFFF; font-weight: 700; font-size: 11px; "
-            "border-radius: 8px; padding: 6px 12px; border: none; text-align: center;"
-        )
-        promo_btn.clicked.connect(lambda: self._switch_to_search())
-        promo_layout.addWidget(promo_btn)
-
-        self.sidebar_layout.addWidget(self.promo_card)
-
         # Switch Account / Logout Button at bottom of sidebar
         self.logout_btn = QPushButton("🚪 Sign Out / Switch")
         self.logout_btn.setObjectName("logoutBtn")
